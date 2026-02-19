@@ -29,6 +29,55 @@ services:
       timeout: 5s
       retries: 5
 
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://driftguard:driftguard@postgres:5432/driftguard
+      REDIS_URL: redis://redis:6379/0
+      DATADOG_API_KEY: ${DATADOG_API_KEY}
+      DATADOG_APP_KEY: ${DATADOG_APP_KEY}
+      DATADOG_SITE: ${DATADOG_SITE:-datadoghq.com}
+      APP_ENV: ${APP_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      SECRET_KEY: ${SECRET_KEY}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend/app:/app/app
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: python -m app.queue.worker
+    environment:
+      DATABASE_URL: postgresql://driftguard:driftguard@postgres:5432/driftguard
+      REDIS_URL: redis://redis:6379/0
+      DATADOG_API_KEY: ${DATADOG_API_KEY}
+      DATADOG_APP_KEY: ${DATADOG_APP_KEY}
+      DATADOG_SITE: ${DATADOG_SITE:-datadoghq.com}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
 volumes:
   postgres_data:
   redis_data:
