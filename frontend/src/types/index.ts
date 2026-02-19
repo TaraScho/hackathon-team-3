@@ -1,13 +1,15 @@
 export interface DriftReport {
   id: string
-  resource_id: string
-  drift_type: string
-  severity: 'low' | 'medium' | 'high' | 'critical'
-  description: string
-  detected_at: string
-  expected_value?: string
-  actual_value?: string
-  metadata?: Record<string, any>
+  repository_id: string
+  scan_time: string
+  drift_detected: boolean
+  total_resources: number
+  drifted_resources: number
+  severity_critical: number
+  severity_high: number
+  severity_medium: number
+  severity_low: number
+  details: Record<string, any>
 }
 
 export interface DriftScanRequest {
