@@ -63,6 +63,9 @@ services:
       DATADOG_API_KEY: ${DATADOG_API_KEY}
       DATADOG_APP_KEY: ${DATADOG_APP_KEY}
       DATADOG_SITE: ${DATADOG_SITE:-datadoghq.com}
+      APP_ENV: ${APP_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      SECRET_KEY: ${SECRET_KEY}
     depends_on:
       postgres:
         condition: service_healthy
