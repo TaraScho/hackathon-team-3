@@ -17,3 +17,12 @@ export interface DriftScanRequest {
   resource_ids?: string[]
   scan_all?: boolean
 }
+
+export interface Repository {
+  id: string
+  name: string
+  url: string
+  branch: string
+  created_at: string
+  last_scan_at: string | null
+}

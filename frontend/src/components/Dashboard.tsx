@@ -1,12 +1,41 @@
-import { DriftReport } from '../types'
+import { useState } from 'react'
+import { DriftReport, Repository } from '../types'
+import { addRepository, triggerDriftScan } from '../services/api'
+import AddRepositoryModal from './AddRepositoryModal'
 
 interface DashboardProps {
   reports: DriftReport[]
+  repositories: Repository[]
   loading: boolean
   error: string | null
+  onRepositoryAdded: () => void
 }
 
-function Dashboard({ reports, loading, error }: DashboardProps) {
+function Dashboard({ reports, repositories, loading, error, onRepositoryAdded }: DashboardProps) {
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [scanningRepoId, setScanningRepoId] = useState<string | null>(null)
+
+  // Create a map of repository ID to repository for quick lookup
+  const repoMap = new Map(repositories.map(repo => [repo.id, repo]))
+
+  const handleAddRepository = async (name: string, url: string, branch: string) => {
+    await addRepository(name, url, branch)
+    onRepositoryAdded()
+  }
+
+  const handleScanRepository = async (repositoryId: string) => {
+    setScanningRepoId(repositoryId)
+    try {
+      await triggerDriftScan(repositoryId)
+      setTimeout(() => {
+        onRepositoryAdded()
+      }, 2000)
+    } catch (err) {
+      console.error('Failed to trigger scan:', err)
+    } finally {
+      setScanningRepoId(null)
+    }
+  }
   if (loading) {
     return (
       <div className="dashboard">
@@ -38,6 +67,52 @@ function Dashboard({ reports, loading, error }: DashboardProps) {
         <p>Infrastructure Drift Detection</p>
       </header>
       <main className="main-content">
+        <section className="repositories-section">
+          <div className="section-header">
+            <h2>Monitored Repositories</h2>
+            <button className="add-repo-btn" onClick={() => setIsModalOpen(true)}>
+              + Add Repository
+            </button>
+          </div>
+          {repositories.length === 0 ? (
+            <div className="no-repositories">No repositories configured. Add a repository to start monitoring.</div>
+          ) : (
+            <div className="repositories-list">
+              {repositories.map(repo => (
+                <div key={repo.id} className="repository-item">
+                  <div className="repo-info">
+                    <h3 className="repo-name">{repo.name}</h3>
+                    <a href={repo.url} target="_blank" rel="noopener noreferrer" className="repo-url">
+                      {repo.url}
+                    </a>
+                    <div className="repo-meta">
+                      <span className="repo-branch">Branch: {repo.branch}</span>
+                      {repo.last_scan_at ? (
+                        <span className="repo-last-scan">Last scan: {new Date(repo.last_scan_at).toLocaleString()}</span>
+                      ) : (
+                        <span className="repo-last-scan">Never scanned</span>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    className="scan-btn"
+                    onClick={() => handleScanRepository(repo.id)}
+                    disabled={scanningRepoId === repo.id}
+                  >
+                    {scanningRepoId === repo.id ? 'Scanning...' : 'Scan Now'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <AddRepositoryModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onAdd={handleAddRepository}
+        />
+
         <h2>Drift Reports</h2>
         {reports.length === 0 ? (
           <div className="no-reports">No drift reports found. Trigger a scan to generate reports.</div>
@@ -48,7 +123,18 @@ function Dashboard({ reports, loading, error }: DashboardProps) {
                 <div className="report-header">
                   <div className="report-title-section">
                     <h3>Scan Report</h3>
-                    <p className="repository-id">Repository: {report.repository_id}</p>
+                    {repoMap.has(report.repository_id) ? (
+                      <a
+                        href={repoMap.get(report.repository_id)!.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="repository-link"
+                      >
+                        {repoMap.get(report.repository_id)!.name}
+                      </a>
+                    ) : (
+                      <p className="repository-id">Repository: {report.repository_id}</p>
+                    )}
                   </div>
                   <span className={`status-badge ${report.drift_detected ? 'status-drift' : 'status-clean'}`}>
                     {report.drift_detected ? 'Drift Detected' : 'No Drift'}
