@@ -26,7 +26,11 @@ class DatadogClient:
     def get_infrastructure_list(self, filter_tags: Optional[List[str]] = None) -> List[Dict[str, Any]]:
         """Fetch list of infrastructure hosts from Datadog."""
         try:
-            response = self.hosts_api.list_hosts(filter=",".join(filter_tags) if filter_tags else None)
+            # Call API with or without filter parameter
+            if filter_tags:
+                response = self.hosts_api.list_hosts(filter=",".join(filter_tags))
+            else:
+                response = self.hosts_api.list_hosts()
 
             hosts = []
             for host in response.host_list:
