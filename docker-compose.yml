@@ -73,8 +73,14 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      datadog-agent:
+        condition: service_healthy
     volumes:
       - ./backend/app:/app/app
+    labels:
+      com.datadoghq.tags.service: "driftguard-api"
+      com.datadoghq.tags.env: "${APP_ENV:-development}"
+      com.datadoghq.tags.version: "0.1.0"
 
   worker:
     build:
