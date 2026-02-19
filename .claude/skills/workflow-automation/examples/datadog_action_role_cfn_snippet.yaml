@@ -1,0 +1,87 @@
+  #############################################################################
+  # Datadog Action Role for Workflow Automation
+  # This role allows Datadog workflows to perform actions in AWS
+  # The trust policy will be updated by the ConfigureDatadog Lambda with the
+  # external ID from the Datadog action connection
+  #############################################################################
+
+  DatadogActionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: DatadogActionRole
+      Description: IAM role for Datadog Workflow Automation to perform actions in AWS
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/PowerUserAccess
+      Policies:
+        - PolicyName: DatadogIAMManagementPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:ListRoles
+                  - iam:CreateRole
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:DeleteRole
+                  - iam:ListPolicies
+                  - iam:CreatePolicy
+                  - iam:DeletePolicy
+                Resource: '*'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                sts:ExternalId: 'placeholder-will-be-updated'
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Service
+          Value: datadog-automation
+
+  #############################################################################
+  # Update ConfigureDatadog Custom Resource to pass DatadogActionRole ARN
+  #############################################################################
+
+  # MODIFY the existing ConfigureDatadog resource to include the role ARN:
+  #
+  # ConfigureDatadog:
+  #   Type: Custom::ConfigureDatadog
+  #   DependsOn:
+  #     - DatadogSecretLookup
+  #     - DatadogActionRole  # Add this dependency
+  #   Properties:
+  #     ServiceToken: !GetAtt ConfigureDatadogLambda.Arn
+  #     DatadogActionRoleArn: !GetAtt DatadogActionRole.Arn  # Add this property
+
+  #############################################################################
+  # Update ConfigureDatadogLambdaRole IAM Policy
+  #############################################################################
+
+  # ADD these IAM permissions to the ConfigureDatadogLambdaRole:
+  #
+  # - PolicyName: IAMRoleTrustPolicyUpdate
+  #   PolicyDocument:
+  #     Version: "2012-10-17"
+  #     Statement:
+  #       - Effect: Allow
+  #         Action:
+  #           - iam:UpdateAssumeRolePolicy
+  #           - iam:GetRole
+  #         Resource:
+  #           - !GetAtt DatadogActionRole.Arn
+
+  #############################################################################
+  # Optional: Output the DatadogActionRole ARN
+  #############################################################################
+
+  # Add to Outputs section:
+  #
+  # DatadogActionRoleArn:
+  #   Description: 'ARN of the IAM role for Datadog Workflow Automation'
+  #   Value: !GetAtt DatadogActionRole.Arn

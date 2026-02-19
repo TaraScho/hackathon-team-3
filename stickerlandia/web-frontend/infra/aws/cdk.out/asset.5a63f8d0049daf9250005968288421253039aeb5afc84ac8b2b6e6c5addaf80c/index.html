@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vite + React</title>
+    <script data-script-description="Environment variables injected by vite-envs">
+  (function (){
+    var envWithValuesInBase64 = {
+  "VITE_API_BASE_URL": "IiI=",
+  "BASE_URL": "Ii8i",
+  "MODE": "InByb2R1Y3Rpb24i",
+  "DEV": "ZmFsc2U=",
+  "PROD": "dHJ1ZQ==",
+  "DD_RUM_APPLICATION_ID": "ImRjZmZiN2Q0LWRmYzctNGI3OS1iYzczLWYwYjk0NTBjMjA2ZSI=",
+  "DD_RUM_CLIENT_TOKEN": "InB1YmI0NzVkODUyZDIyZDAwYjJmOTY5Yjc0ZmZlYmZlMmM0Ig==",
+  "DD_SITE": "ImRhdGFkb2docS5jb20i",
+  "DD_ENV": "IiI=",
+  "DD_VERSION": "IiI=",
+  "DD_SERVICE": "IiI="
+};
+    var env = {};
+    Object.keys(envWithValuesInBase64).forEach(function (name) {
+      env[name] = JSON.parse(
+        new TextDecoder().decode(
+          Uint8Array.from(
+            atob(envWithValuesInBase64[name]),
+            c => c.charCodeAt(0)
+          )
+        )
+      );
+    });
+    window.__VITE_ENVS = env;
+  })();
+</script><script type="module" crossorigin src="/assets/index-DJuVWlcj.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DoP0XsPh.css">
+  </head>
+  <body class="flex min-h-full flex-col bg-[--root-bg]">
+    <div id="root" class="isolate flex flex-auto flex-col bg-[--root-bg]"></div>
+  </body>
+</html>

@@ -1,0 +1,191 @@
+{
+	"title": "Datadog 101: SRE Dashboard",
+	"description": "",
+	"widgets": [
+		{
+			"definition": {
+				"title": "",
+				"title_size": "16",
+				"title_align": "left",
+				"show_legend": false,
+				"type": "timeseries",
+				"requests": [
+					{
+						"formulas": [
+							{
+								"formula": "a"
+							}
+						],
+						"response_format": "timeseries",
+						"queries": [
+							{
+								"search": {
+									"query": "service:(store-ads OR store-discounts) -status:(warn OR info)"
+								},
+								"data_source": "logs",
+								"compute": {
+									"aggregation": "count"
+								},
+								"name": "a",
+								"indexes": [
+									"*"
+								],
+								"group_by": [
+									{
+										"facet": "service",
+										"sort": {
+											"aggregation": "count",
+											"order": "desc"
+										},
+										"limit": 10,
+										"should_exclude_missing": true
+									}
+								]
+							}
+						],
+						"style": {
+							"palette": "dog_classic"
+						},
+						"display_type": "bars"
+					}
+				]
+			},
+			"layout": {
+				"x": 0,
+				"y": 0,
+				"width": 4,
+				"height": 2
+			}
+		},
+		{
+			"definition": {
+				"title": "docker.cpu.system with service:store-ads",
+				"title_size": "16",
+				"title_align": "left",
+				"show_legend": false,
+				"type": "timeseries",
+				"requests": [
+					{
+						"q": "avg:docker.cpu.system{service:store-ads}",
+						"display_type": "line"
+					}
+				]
+			},
+			"layout": {
+				"x": 4,
+				"y": 0,
+				"width": 4,
+				"height": 2
+			}
+		},
+		{
+			"definition": {
+				"title": "docker.cpu.system with service:database",
+				"title_size": "16",
+				"title_align": "left",
+				"show_legend": false,
+				"type": "timeseries",
+				"requests": [
+					{
+						"q": "avg:docker.cpu.system{service:database}",
+						"display_type": "line"
+					}
+				]
+			},
+			"layout": {
+				"x": 8,
+				"y": 0,
+				"width": 4,
+				"height": 2
+			}
+		},
+		{
+			"definition": {
+				"title": "docker.cpu.system with service:store-discounts",
+				"title_size": "16",
+				"title_align": "left",
+				"show_legend": false,
+				"type": "timeseries",
+				"requests": [
+					{
+						"q": "avg:docker.cpu.system{service:store-discounts}",
+						"display_type": "line"
+					}
+				]
+			},
+			"layout": {
+				"x": 0,
+				"y": 2,
+				"width": 4,
+				"height": 2
+			}
+		},
+		{
+			"definition": {
+				"title": "docker.cpu.system with service:store-frontend",
+				"title_size": "16",
+				"title_align": "left",
+				"show_legend": false,
+				"type": "timeseries",
+				"requests": [
+					{
+						"q": "avg:docker.cpu.system{service:store-frontend}",
+						"display_type": "line"
+					}
+				]
+			},
+			"layout": {
+				"x": 4,
+				"y": 2,
+				"width": 4,
+				"height": 2
+			}
+		},
+		{
+			"definition": {
+				"title": "trace.flask.request with service:store-ads",
+				"title_size": "16",
+				"title_align": "left",
+				"show_legend": false,
+				"type": "timeseries",
+				"requests": [
+					{
+						"q": "trace.flask.request{service:store-ads}",
+						"display_type": "line"
+					}
+				]
+			},
+			"layout": {
+				"x": 8,
+				"y": 2,
+				"width": 4,
+				"height": 2
+			}
+		},
+		{
+			"definition": {
+				"title": "trace.flask.request with service:store-discounts",
+				"title_size": "16",
+				"title_align": "left",
+				"show_legend": false,
+				"type": "timeseries",
+				"requests": [
+					{
+						"q": "trace.flask.request{service:store-discounts}",
+						"display_type": "line"
+					}
+				]
+			},
+			"layout": {
+				"x": 0,
+				"y": 4,
+				"width": 4,
+				"height": 2
+			}
+		}
+	],
+	"template_variables": [],
+	"layout_type": "ordered",
+	"notify_list": [],
+	"reflow_type": "fixed"
+}

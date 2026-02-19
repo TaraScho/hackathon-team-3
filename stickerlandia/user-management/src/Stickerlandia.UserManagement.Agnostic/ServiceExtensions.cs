@@ -1,0 +1,140 @@
+/*
+ * Unless explicitly stated otherwise all files in this repository are licensed under the Apache License Version 2.0.
+ * This product includes software developed at Datadog (https://www.datadoghq.com/).
+ * Copyright 2025-Present Datadog, Inc.
+ */
+
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025 Datadog, Inc.
+
+using Confluent.Kafka;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Stickerlandia.UserManagement.Auth;
+using Stickerlandia.UserManagement.Core;
+using Stickerlandia.UserManagement.Core.Outbox;
+
+namespace Stickerlandia.UserManagement.Agnostic;
+
+public static class ServiceExtensions
+{
+    public static IServiceCollection AddAgnosticAdapters(this IServiceCollection services, IConfiguration configuration,
+        bool enableDefaultUi = true)
+    {
+        if (EF.IsDesignTime)
+        {
+            services.AddPostgresAuthServices(configuration, enableDefaultUi);
+            return services;
+        }
+        
+        services.AddKafkaMessaging(configuration);
+        services.AddPostgresAuthServices(configuration, enableDefaultUi);
+
+        return services;
+    }
+
+    public static IServiceCollection AddKafkaMessaging(this IServiceCollection services, IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        var kafkaUsername = configuration?["KAFKA_USERNAME"];
+        var kafkaPassword = configuration?["KAFKA_PASSWORD"];
+        var securityProtocol = string.IsNullOrEmpty(kafkaUsername) ? SecurityProtocol.Plaintext : SecurityProtocol.SaslSsl;
+        
+        using var adminClient = new AdminClientBuilder(new AdminClientConfig
+        {
+            BootstrapServers = configuration!.GetConnectionString("messaging"),
+            SecurityProtocol = securityProtocol,
+            SaslUsername = kafkaUsername ?? null,
+            SaslPassword = kafkaPassword ?? null,
+            SaslMechanism = SaslMechanism.Plain,
+        }).Build();
+        
+        var metadata = adminClient.GetMetadata(TimeSpan.FromSeconds(10));
+        
+        if (metadata.Brokers.Count == 0)
+        {
+            throw new InvalidOperationException("No Kafka brokers available with the provided configuration.");
+        }
+        
+        var producerConfig = new ProducerConfig
+        {
+            BootstrapServers = configuration!.GetConnectionString("messaging"),
+            SecurityProtocol = securityProtocol,
+            SaslUsername = kafkaUsername ?? null,
+            SaslPassword = kafkaPassword ?? null,
+            SaslMechanism = SaslMechanism.Plain,
+            Acks = Acks.All
+        };
+
+        var consumerConfig = new ConsumerConfig
+        {
+            // User-specific properties that you must set
+            BootstrapServers = configuration!.GetConnectionString("messaging"),
+            // Fixed properties
+            SecurityProtocol = securityProtocol,
+            SaslUsername = kafkaUsername ?? null,
+            SaslPassword = kafkaPassword ?? null,
+            SaslMechanism = SaslMechanism.Plain,
+            Acks = Acks.All,
+            GroupId = "stickerlandia-users",
+            AutoOffsetReset = AutoOffsetReset.Earliest,
+            EnableAutoCommit = false
+        };
+
+        services.AddSingleton(producerConfig);
+        services.AddSingleton(consumerConfig);
+
+        // Register event publisher as singleton
+        services.AddSingleton<IUserEventPublisher, KafkaEventPublisher>();
+        services.AddSingleton<IMessagingWorker, KafakStickerClaimedWorker>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddPostgresAuthServices(this IServiceCollection services,
+        IConfiguration configuration,
+        bool enableDefaultUi = true)
+    {
+        services.AddDbContext<UserManagementDbContext>(options =>
+        {
+            options.UseNpgsql(configuration.GetConnectionString("database"),
+                npgsqlOptions => npgsqlOptions.MigrationsAssembly("Stickerlandia.UserManagement.Agnostic"));
+            options.UseOpenIddict();
+        });
+
+        var identityOptions = services.AddIdentity<PostgresUserAccount, IdentityRole>(options =>
+            {
+                options.User.RequireUniqueEmail = true;
+            })
+            .AddEntityFrameworkStores<UserManagementDbContext>()
+            .AddDefaultTokenProviders();
+
+        if (enableDefaultUi) identityOptions.AddDefaultUI();
+
+        var disableSsl = false;
+
+        if (configuration.GetValue<bool>("DISABLE_SSL")) disableSsl = true;
+
+        services.AddCoreAuthentication(options =>
+            options.UseEntityFrameworkCore()
+                .UseDbContext<UserManagementDbContext>(), disableSsl);
+
+        services.ConfigureApplicationCookie(options =>
+        {
+            options.LoginPath = new PathString("/auth/login");
+            options.LogoutPath = new PathString("/auth/logout");
+            options.AccessDeniedPath = new PathString("/auth/denied");
+        });
+
+        services.AddScoped<IAuthService, MicrosoftIdentityAuthService>();
+
+        services.AddScoped<IOutbox, PostgresOutbox>();
+
+        return services;
+    }
+}

@@ -1,0 +1,54 @@
+{
+    "steps": [
+        {
+            "actionId": "com.datadoghq.aws.lambda.invoke_lambda",
+            "connectionLabel": "INTEGRATION_AWS",
+            "display": {
+                "bounds": {
+                    "y": 212
+                }
+            },
+            "name": "Invoke_lambda_function",
+            "parameters": [
+                {
+                    "name": "region",
+                    "value": "us-east-1"
+                },
+                {
+                    "name": "functionName",
+                    "value": "RequireIMDSLambda"
+                },
+                {
+                    "name": "inputPayload",
+                    "value": {
+                        "instance_id": "{{ Source.securityIssue.resource }}"
+                    }
+                },
+                {
+                    "name": "invocationType",
+                    "value": "Event"
+                }
+            ]
+        }
+    ],
+    "connectionEnvs": [
+        {
+            "connections": [
+                {
+                    "connectionId": "3f6bc0df-f61d-449f-afe1-d8c5af906afc",
+                    "label": "INTEGRATION_AWS"
+                }
+            ],
+            "env": "default"
+        }
+    ],
+    "handle": "require-imds-v2",
+    "triggers": [
+        {
+            "securityTrigger": {},
+            "startStepNames": [
+                "Invoke_lambda_function"
+            ]
+        }
+    ]
+}

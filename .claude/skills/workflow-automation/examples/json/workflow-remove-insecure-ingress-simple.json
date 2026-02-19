@@ -1,0 +1,71 @@
+{
+    "id": "272d4845-140e-47ef-868c-8d5543692c70",
+    "name": "Remove insecure ingress rules - Simple",
+    "description": "",
+    "tags": [],
+    "published": true,
+    "spec": {
+      "triggers": [
+        {
+          "startStepNames": [
+            "Revoke_security_group_ingress"
+          ],
+          "securityTrigger": {}
+        }
+      ],
+      "steps": [
+        {
+          "name": "Revoke_security_group_ingress",
+          "actionId": "com.datadoghq.aws.ec2.revoke_security_group_ingress",
+          "connectionLabel": "INTEGRATION_AWS",
+          "parameters": [
+            {
+              "name": "region",
+              "value": "us-east-1"
+            },
+            {
+              "name": "ipPermissions",
+              "value": [
+                {
+                  "FromPort": 80,
+                  "IpProtocol": "TCP",
+                  "IpRanges": [
+                    {
+                      "CidrIp": "0.0.0.0/0"
+                    }
+                  ],
+                  "ToPort": 80
+                }
+              ]
+            },
+            {
+              "name": "dryRun",
+              "value": false
+            },
+            {
+              "name": "groupId",
+              "value": "{{ Source.securityFinding.resourceConfiguration.group_id }}"
+            }
+          ],
+          "display": {
+            "bounds": {
+              "x": 0,
+              "y": 252
+            }
+          }
+        }
+      ],
+      "handle": "remove-rules-simple",
+      "connectionEnvs": [
+        {
+          "env": "default",
+          "connections": [
+            {
+              "connectionId": "22cc0d88-b525-4e42-a506-6a043ae643c3",
+              "label": "INTEGRATION_AWS"
+            }
+          ]
+        }
+      ]
+    }
+  }

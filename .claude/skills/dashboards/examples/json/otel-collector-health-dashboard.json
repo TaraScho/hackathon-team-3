@@ -1,0 +1,3468 @@
+{
+  "title": "SKO26 OTel Collector Health",
+  "description": "[[suggested_dashboards]]",
+  "widgets": [
+    {
+      "id": 6581498834178918,
+      "definition": {
+        "title": "Agent Collectors",
+        "background_color": "vivid_blue",
+        "show_title": true,
+        "type": "group",
+        "layout_type": "ordered",
+        "widgets": [
+          {
+            "id": 1636251637019680,
+            "definition": {
+              "type": "free_text",
+              "text": "Memory Limiter Processor",
+              "color": "#4d4d4d",
+              "font_size": "36",
+              "text_align": "center"
+            },
+            "layout": {
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 1
+            }
+          },
+          {
+            "id": 8587378183186002,
+            "definition": {
+              "title": "Accepted Metric Points",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_processor_accepted_metric_points_total{collector.role:agent,processor:memory_limiter,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar"
+                }
+              ],
+              "autoscale": true,
+              "precision": 1,
+              "timeseries_background": {
+                "yaxis": {},
+                "type": "bars"
+              }
+            },
+            "layout": {
+              "x": 0,
+              "y": 1,
+              "width": 4,
+              "height": 2
+            }
+          },
+          {
+            "id": 206721212979676,
+            "definition": {
+              "title": "Accepted Spans",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_processor_accepted_spans_total{collector.role:agent,processor:memory_limiter,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar"
+                }
+              ],
+              "autoscale": true,
+              "precision": 1,
+              "timeseries_background": {
+                "yaxis": {},
+                "type": "bars"
+              }
+            },
+            "layout": {
+              "x": 4,
+              "y": 1,
+              "width": 4,
+              "height": 2
+            }
+          },
+          {
+            "id": 5371119190928660,
+            "definition": {
+              "title": "Accepted Log Records",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_processor_accepted_log_records_total{collector.role:agent,processor:memory_limiter,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar"
+                }
+              ],
+              "autoscale": true,
+              "precision": 1,
+              "timeseries_background": {
+                "yaxis": {},
+                "type": "bars"
+              }
+            },
+            "layout": {
+              "x": 8,
+              "y": 1,
+              "width": 4,
+              "height": 2
+            }
+          },
+          {
+            "id": 6654937544054180,
+            "definition": {
+              "title": "Refused Metric Points",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "formula": "default_zero(query2)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query2",
+                      "query": "sum:otelcol_processor_refused_metric_points_total{collector.role:agent,processor:memory_limiter,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "conditional_formats": [
+                    {
+                      "comparator": "=",
+                      "value": 0,
+                      "palette": "white_on_green"
+                    },
+                    {
+                      "comparator": ">",
+                      "value": 0,
+                      "palette": "white_on_red"
+                    }
+                  ]
+                }
+              ],
+              "autoscale": true,
+              "precision": 2,
+              "timeseries_background": {
+                "type": "area"
+              }
+            },
+            "layout": {
+              "x": 0,
+              "y": 3,
+              "width": 4,
+              "height": 1
+            }
+          },
+          {
+            "id": 4514365255879166,
+            "definition": {
+              "title": "Refused Spans",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "formula": "default_zero(query2)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query2",
+                      "query": "sum:otelcol_processor_refused_spans_total{collector.role:agent,processor:memory_limiter,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "conditional_formats": [
+                    {
+                      "comparator": "=",
+                      "value": 0,
+                      "palette": "white_on_green"
+                    },
+                    {
+                      "comparator": ">",
+                      "value": 0,
+                      "palette": "white_on_red"
+                    }
+                  ]
+                }
+              ],
+              "autoscale": true,
+              "precision": 2,
+              "timeseries_background": {
+                "type": "area"
+              }
+            },
+            "layout": {
+              "x": 4,
+              "y": 3,
+              "width": 4,
+              "height": 1
+            }
+          },
+          {
+            "id": 2555956112392402,
+            "definition": {
+              "title": "Refused Log Records",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "formula": "default_zero(query2)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query2",
+                      "query": "sum:otelcol_processor_refused_log_records_total{collector.role:agent,processor:memory_limiter,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "conditional_formats": [
+                    {
+                      "comparator": "=",
+                      "value": 0,
+                      "palette": "white_on_green"
+                    },
+                    {
+                      "comparator": ">",
+                      "value": 0,
+                      "palette": "white_on_red"
+                    }
+                  ]
+                }
+              ],
+              "autoscale": true,
+              "precision": 2,
+              "timeseries_background": {
+                "type": "area"
+              }
+            },
+            "layout": {
+              "x": 8,
+              "y": 3,
+              "width": 4,
+              "height": 1
+            }
+          },
+          {
+            "id": 7453710461230390,
+            "definition": {
+              "type": "free_text",
+              "text": "Batch Processor",
+              "color": "#4d4d4d",
+              "font_size": "36",
+              "text_align": "center"
+            },
+            "layout": {
+              "x": 0,
+              "y": 4,
+              "width": 12,
+              "height": 1
+            }
+          },
+          {
+            "id": 8464782056461884,
+            "definition": {
+              "title": "Send Size - Metrics",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "avg:otelcol_processor_batch_batch_send_size{collector.role:agent,processor:batch/metrics,$env}",
+                      "aggregator": "sum"
+                    }
+                  ],
+                  "response_format": "scalar"
+                }
+              ],
+              "autoscale": true,
+              "precision": 0,
+              "timeseries_background": {
+                "yaxis": {},
+                "type": "bars"
+              }
+            },
+            "layout": {
+              "x": 0,
+              "y": 5,
+              "width": 4,
+              "height": 2
+            }
+          },
+          {
+            "id": 5730087413511724,
+            "definition": {
+              "title": "Send Size - Spans",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "avg:otelcol_processor_batch_batch_send_size{collector.role:agent,processor:batch/traces,$env}",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar"
+                }
+              ],
+              "autoscale": true,
+              "precision": 0,
+              "timeseries_background": {
+                "yaxis": {},
+                "type": "bars"
+              }
+            },
+            "layout": {
+              "x": 4,
+              "y": 5,
+              "width": 4,
+              "height": 2
+            }
+          },
+          {
+            "id": 8365087415051698,
+            "definition": {
+              "title": "Send Size - Logs",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "avg:otelcol_processor_batch_batch_send_size{collector.role:agent,processor:batch/logs,$env}",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar"
+                }
+              ],
+              "autoscale": true,
+              "precision": 0,
+              "timeseries_background": {
+                "yaxis": {},
+                "type": "bars"
+              }
+            },
+            "layout": {
+              "x": 8,
+              "y": 5,
+              "width": 4,
+              "height": 2
+            }
+          },
+          {
+            "id": 3725981785889739,
+            "definition": {
+              "title": "Send Rate by Host - Metrics",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "toplist",
+              "requests": [
+                {
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_processor_batch_batch_send_size{collector.role:agent,processor:batch/metrics,$env} by {host}.as_count()",
+                      "aggregator": "sum"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "formulas": [
+                    {
+                      "formula": "query1"
+                    }
+                  ],
+                  "sort": {
+                    "count": 10,
+                    "order_by": [
+                      {
+                        "type": "formula",
+                        "index": 0,
+                        "order": "desc"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "style": {
+                "display": {
+                  "type": "stacked",
+                  "legend": "automatic"
+                }
+              }
+            },
+            "layout": {
+              "x": 0,
+              "y": 7,
+              "width": 4,
+              "height": 2
+            }
+          },
+          {
+            "id": 5757386337687940,
+            "definition": {
+              "title": "Send Rate by Host - Spans/sec",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "toplist",
+              "requests": [
+                {
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_processor_batch_batch_send_size{collector.role:agent,processor:batch/traces,$env} by {host}.as_rate()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit",
+                          "unit_name": "span",
+                          "per_unit_name": "second"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "sort": {
+                    "count": 10,
+                    "order_by": [
+                      {
+                        "type": "formula",
+                        "index": 0,
+                        "order": "desc"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "style": {
+                "display": {
+                  "type": "stacked",
+                  "legend": "automatic"
+                }
+              }
+            },
+            "layout": {
+              "x": 4,
+              "y": 7,
+              "width": 4,
+              "height": 2
+            }
+          },
+          {
+            "id": 2548223988401338,
+            "definition": {
+              "title": "Send Rate by Host - Logs/sec",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "toplist",
+              "requests": [
+                {
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_processor_batch_batch_send_size{collector.role:agent,processor:batch/logs,$env} by {host}.as_count()",
+                      "aggregator": "sum"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit",
+                          "unit_name": "entry",
+                          "per_unit_name": "second"
+                        }
+                      },
+                      "formula": "query1"
+                    }
+                  ],
+                  "sort": {
+                    "count": 10,
+                    "order_by": [
+                      {
+                        "type": "formula",
+                        "index": 0,
+                        "order": "desc"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "style": {
+                "display": {
+                  "type": "stacked",
+                  "legend": "automatic"
+                }
+              }
+            },
+            "layout": {
+              "x": 8,
+              "y": 7,
+              "width": 4,
+              "height": 2
+            }
+          },
+          {
+            "id": 3005421543074764,
+            "definition": {
+              "type": "free_text",
+              "text": "Size Triggers",
+              "color": "#4d4d4d",
+              "font_size": "24",
+              "text_align": "center"
+            },
+            "layout": {
+              "x": 0,
+              "y": 9,
+              "width": 6,
+              "height": 1
+            }
+          },
+          {
+            "id": 3313090752737440,
+            "definition": {
+              "type": "free_text",
+              "text": "Timeout Triggers",
+              "color": "#4d4d4d",
+              "font_size": "24",
+              "text_align": "center"
+            },
+            "layout": {
+              "x": 6,
+              "y": 9,
+              "width": 6,
+              "height": 1
+            }
+          },
+          {
+            "id": 5401031511950408,
+            "definition": {
+              "title": "Metrics",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "name": "query1",
+                      "data_source": "metrics",
+                      "query": "sum:otelcol_processor_batch_batch_size_trigger_send_total{collector.role:agent,processor:batch/metrics,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "conditional_formats": [
+                    {
+                      "comparator": ">",
+                      "value": 0,
+                      "palette": "white_on_yellow"
+                    },
+                    {
+                      "comparator": "=",
+                      "value": 0,
+                      "palette": "white_on_green"
+                    }
+                  ]
+                }
+              ],
+              "autoscale": true,
+              "text_align": "center",
+              "precision": 0,
+              "timeseries_background": {
+                "yaxis": {},
+                "type": "bars"
+              }
+            },
+            "layout": {
+              "x": 0,
+              "y": 10,
+              "width": 2,
+              "height": 2
+            }
+          },
+          {
+            "id": 298268096758344,
+            "definition": {
+              "title": "Spans",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "name": "query1",
+                      "data_source": "metrics",
+                      "query": "sum:otelcol_processor_batch_batch_size_trigger_send_total{collector.role:agent,processor:batch/traces,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "conditional_formats": [
+                    {
+                      "comparator": ">",
+                      "value": 0,
+                      "palette": "white_on_yellow"
+                    },
+                    {
+                      "comparator": "=",
+                      "value": 0,
+                      "palette": "white_on_green"
+                    }
+                  ]
+                }
+              ],
+              "autoscale": true,
+              "text_align": "center",
+              "precision": 0,
+              "timeseries_background": {
+                "yaxis": {},
+                "type": "bars"
+              }
+            },
+            "layout": {
+              "x": 2,
+              "y": 10,
+              "width": 2,
+              "height": 2
+            }
+          },
+          {
+            "id": 8504897864508192,
+            "definition": {
+              "title": "Logs",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "name": "query1",
+                      "data_source": "metrics",
+                      "query": "sum:otelcol_processor_batch_batch_size_trigger_send_total{collector.role:agent,processor:batch/logs,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "conditional_formats": [
+                    {
+                      "comparator": ">",
+                      "value": 0,
+                      "palette": "white_on_yellow"
+                    },
+                    {
+                      "comparator": "=",
+                      "value": 0,
+                      "palette": "white_on_green"
+                    }
+                  ]
+                }
+              ],
+              "autoscale": true,
+              "text_align": "center",
+              "precision": 0,
+              "timeseries_background": {
+                "yaxis": {},
+                "type": "bars"
+              }
+            },
+            "layout": {
+              "x": 4,
+              "y": 10,
+              "width": 2,
+              "height": 2
+            }
+          },
+          {
+            "id": 7852690734003058,
+            "definition": {
+              "title": "Metrics",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_processor_batch_timeout_trigger_send_total{collector.role:agent,processor:batch/metrics,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar"
+                }
+              ],
+              "autoscale": true,
+              "precision": 0,
+              "timeseries_background": {
+                "yaxis": {},
+                "type": "bars"
+              }
+            },
+            "layout": {
+              "x": 6,
+              "y": 10,
+              "width": 2,
+              "height": 2
+            }
+          },
+          {
+            "id": 7246202413867404,
+            "definition": {
+              "title": "Spans",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_processor_batch_timeout_trigger_send_total{collector.role:agent,processor:batch/traces,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar"
+                }
+              ],
+              "autoscale": true,
+              "precision": 0,
+              "timeseries_background": {
+                "yaxis": {},
+                "type": "bars"
+              }
+            },
+            "layout": {
+              "x": 8,
+              "y": 10,
+              "width": 2,
+              "height": 2
+            }
+          },
+          {
+            "id": 6529622318671840,
+            "definition": {
+              "title": "Logs",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_processor_batch_timeout_trigger_send_total{collector.role:agent,processor:batch/logs,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar"
+                }
+              ],
+              "autoscale": true,
+              "precision": 0,
+              "timeseries_background": {
+                "yaxis": {},
+                "type": "bars"
+              }
+            },
+            "layout": {
+              "x": 10,
+              "y": 10,
+              "width": 2,
+              "height": 2
+            }
+          },
+          {
+            "id": 5449789348828806,
+            "definition": {
+              "title": "Send Size by Host",
+              "title_size": "16",
+              "title_align": "left",
+              "requests": [
+                {
+                  "queries": [
+                    {
+                      "name": "query1",
+                      "data_source": "metrics",
+                      "query": "sum:otelcol_processor_batch_batch_send_size{collector.role:agent,$env} by {host,processor}.as_count()",
+                      "aggregator": "sum"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "style": {
+                    "palette": "datadog16"
+                  },
+                  "formulas": [
+                    {
+                      "formula": "query1"
+                    }
+                  ],
+                  "sort": {
+                    "count": 500,
+                    "order_by": [
+                      {
+                        "type": "formula",
+                        "index": 0,
+                        "order": "desc"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "type": "sunburst",
+              "legend": {
+                "type": "automatic"
+              }
+            },
+            "layout": {
+              "x": 0,
+              "y": 12,
+              "width": 6,
+              "height": 3
+            }
+          },
+          {
+            "id": 6326790508667712,
+            "definition": {
+              "title": "Send Size by Signal Type",
+              "title_size": "16",
+              "title_align": "left",
+              "requests": [
+                {
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "avg:otelcol_processor_batch_batch_send_size{collector.role:agent,$env} by {processor}",
+                      "aggregator": "sum"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "style": {
+                    "palette": "datadog16"
+                  },
+                  "formulas": [
+                    {
+                      "formula": "query1"
+                    }
+                  ],
+                  "sort": {
+                    "count": 500,
+                    "order_by": [
+                      {
+                        "type": "formula",
+                        "index": 0,
+                        "order": "desc"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "type": "sunburst",
+              "legend": {
+                "type": "automatic"
+              }
+            },
+            "layout": {
+              "x": 6,
+              "y": 12,
+              "width": 6,
+              "height": 3
+            }
+          },
+          {
+            "id": 7674773636691198,
+            "definition": {
+              "type": "free_text",
+              "text": "Exporters",
+              "color": "#4d4d4d",
+              "font_size": "36",
+              "text_align": "center"
+            },
+            "layout": {
+              "x": 0,
+              "y": 15,
+              "width": 12,
+              "height": 1
+            }
+          },
+          {
+            "id": 8678471073126240,
+            "definition": {
+              "title": "Exporter Queue Capacity",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_exporter_queue_capacity{collector.role:agent,$env}",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar"
+                }
+              ],
+              "autoscale": true,
+              "custom_links": [
+                {
+                  "label": "Metric Description",
+                  "link": "https://github.com/open-telemetry/opentelemetry-collector/blob/main/exporter/exporterhelper/documentation.md#otelcol_exporter_queue_capacity"
+                }
+              ],
+              "precision": 2
+            },
+            "layout": {
+              "x": 0,
+              "y": 16,
+              "width": 6,
+              "height": 1
+            }
+          },
+          {
+            "id": 2351213869180256,
+            "definition": {
+              "title": "Exporter Queue Size",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_exporter_queue_size{collector.role:agent,$env}",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar"
+                }
+              ],
+              "autoscale": true,
+              "custom_links": [
+                {
+                  "label": "Metric Description",
+                  "link": "https://github.com/open-telemetry/opentelemetry-collector/blob/main/exporter/exporterhelper/documentation.md#otelcol_exporter_queue_size"
+                }
+              ],
+              "precision": 2,
+              "timeseries_background": {
+                "yaxis": {},
+                "type": "bars"
+              }
+            },
+            "layout": {
+              "x": 6,
+              "y": 16,
+              "width": 6,
+              "height": 1
+            }
+          },
+          {
+            "id": 7152378271274690,
+            "definition": {
+              "title": "Sent Metric Points",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_exporter_sent_metric_points_total{collector.role:agent,exporter:loadbalancing/metric,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar"
+                }
+              ],
+              "autoscale": false,
+              "precision": 0,
+              "timeseries_background": {
+                "yaxis": {},
+                "type": "bars"
+              }
+            },
+            "layout": {
+              "x": 0,
+              "y": 17,
+              "width": 4,
+              "height": 2
+            }
+          },
+          {
+            "id": 2559292434483904,
+            "definition": {
+              "title": "Sent Spans Records",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_exporter_sent_spans_total{collector.role:agent,exporter:loadbalancing/service,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar"
+                }
+              ],
+              "autoscale": false,
+              "precision": 0,
+              "timeseries_background": {
+                "yaxis": {},
+                "type": "bars"
+              }
+            },
+            "layout": {
+              "x": 4,
+              "y": 17,
+              "width": 4,
+              "height": 2
+            }
+          },
+          {
+            "id": 2895192638626900,
+            "definition": {
+              "title": "Sent Log Records",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_exporter_sent_log_records_total{collector.role:agent,exporter:loadbalancing/service,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar"
+                }
+              ],
+              "autoscale": false,
+              "precision": 0,
+              "timeseries_background": {
+                "yaxis": {},
+                "type": "bars"
+              }
+            },
+            "layout": {
+              "x": 8,
+              "y": 17,
+              "width": 4,
+              "height": 2
+            }
+          },
+          {
+            "id": 833576471073142,
+            "definition": {
+              "title": "Enqueue Metric Failures",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_exporter_enqueue_failed_metric_points{collector.role:agent,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "conditional_formats": [
+                    {
+                      "comparator": "=",
+                      "value": 0,
+                      "palette": "white_on_green"
+                    },
+                    {
+                      "comparator": ">",
+                      "value": 0,
+                      "palette": "white_on_red"
+                    }
+                  ]
+                }
+              ],
+              "autoscale": true,
+              "custom_links": [
+                {
+                  "label": "Metric Description",
+                  "link": "https://github.com/open-telemetry/opentelemetry-collector/blob/main/exporter/exporterhelper/documentation.md#otelcol_exporter_enqueue_failed_metric_points"
+                }
+              ],
+              "precision": 2,
+              "timeseries_background": {
+                "type": "area"
+              }
+            },
+            "layout": {
+              "x": 0,
+              "y": 19,
+              "width": 2,
+              "height": 1
+            }
+          },
+          {
+            "id": 3856458078476328,
+            "definition": {
+              "title": "Send Failed Metric Points",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_exporter_send_failed_metric_points_total{collector.role:agent,exporter:loadbalancing/metric,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "conditional_formats": [
+                    {
+                      "comparator": "=",
+                      "value": 0,
+                      "palette": "white_on_green"
+                    },
+                    {
+                      "comparator": ">",
+                      "value": 0,
+                      "palette": "white_on_red"
+                    }
+                  ]
+                }
+              ],
+              "autoscale": true,
+              "precision": 2,
+              "timeseries_background": {
+                "type": "area"
+              }
+            },
+            "layout": {
+              "x": 2,
+              "y": 19,
+              "width": 2,
+              "height": 1
+            }
+          },
+          {
+            "id": 7986879330002203,
+            "definition": {
+              "title": "Enqueue Span Failures",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_exporter_enqueue_failed_metric_points{collector.role:agent,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "conditional_formats": [
+                    {
+                      "comparator": "=",
+                      "value": 0,
+                      "palette": "white_on_green"
+                    },
+                    {
+                      "comparator": ">",
+                      "value": 0,
+                      "palette": "white_on_red"
+                    }
+                  ]
+                }
+              ],
+              "autoscale": true,
+              "custom_links": [
+                {
+                  "label": "Metric Description",
+                  "link": "https://github.com/open-telemetry/opentelemetry-collector/blob/main/exporter/exporterhelper/documentation.md#otelcol_exporter_enqueue_failed_spans"
+                }
+              ],
+              "precision": 2,
+              "timeseries_background": {
+                "type": "area"
+              }
+            },
+            "layout": {
+              "x": 4,
+              "y": 19,
+              "width": 2,
+              "height": 1
+            }
+          },
+          {
+            "id": 3804973143496550,
+            "definition": {
+              "title": "Send Failed Spans Records",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_exporter_send_failed_spans_total{collector.role:agent,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "conditional_formats": [
+                    {
+                      "comparator": "=",
+                      "value": 0,
+                      "palette": "white_on_green"
+                    },
+                    {
+                      "comparator": ">",
+                      "value": 0,
+                      "palette": "white_on_red"
+                    }
+                  ]
+                }
+              ],
+              "autoscale": true,
+              "precision": 2,
+              "timeseries_background": {
+                "type": "area"
+              }
+            },
+            "layout": {
+              "x": 6,
+              "y": 19,
+              "width": 2,
+              "height": 1
+            }
+          },
+          {
+            "id": 6893931165223555,
+            "definition": {
+              "title": "Enqueue Log Failures",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_exporter_enqueue_failed_metric_points{collector.role:agent,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "conditional_formats": [
+                    {
+                      "comparator": "=",
+                      "value": 0,
+                      "palette": "white_on_green"
+                    },
+                    {
+                      "comparator": ">",
+                      "value": 0,
+                      "palette": "white_on_red"
+                    }
+                  ]
+                }
+              ],
+              "autoscale": true,
+              "custom_links": [
+                {
+                  "label": "Metric Description",
+                  "link": "https://github.com/open-telemetry/opentelemetry-collector/blob/main/exporter/exporterhelper/documentation.md#otelcol_exporter_enqueue_failed_log_records"
+                }
+              ],
+              "precision": 2,
+              "timeseries_background": {
+                "type": "area"
+              }
+            },
+            "layout": {
+              "x": 8,
+              "y": 19,
+              "width": 2,
+              "height": 1
+            }
+          },
+          {
+            "id": 3513474671932882,
+            "definition": {
+              "title": "Send Failed Log Records",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_exporter_send_failed_log_records_total{collector.role:agent,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "conditional_formats": [
+                    {
+                      "comparator": "=",
+                      "value": 0,
+                      "palette": "white_on_green"
+                    },
+                    {
+                      "comparator": ">",
+                      "value": 0,
+                      "palette": "white_on_red"
+                    }
+                  ]
+                }
+              ],
+              "autoscale": true,
+              "precision": 2,
+              "timeseries_background": {
+                "type": "area"
+              }
+            },
+            "layout": {
+              "x": 10,
+              "y": 19,
+              "width": 2,
+              "height": 1
+            }
+          },
+          {
+            "id": 6728042750089614,
+            "definition": {
+              "type": "free_text",
+              "text": "Load Balancing",
+              "color": "#4d4d4d",
+              "font_size": "36",
+              "text_align": "center"
+            },
+            "layout": {
+              "x": 0,
+              "y": 20,
+              "width": 12,
+              "height": 1
+            }
+          },
+          {
+            "id": 4891055941384530,
+            "definition": {
+              "title": "# of Backends",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "formula": "query1"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "name": "query1",
+                      "data_source": "metrics",
+                      "query": "avg:otelcol_loadbalancer_num_backends{$env}",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar"
+                }
+              ],
+              "autoscale": true,
+              "precision": 2
+            },
+            "layout": {
+              "x": 0,
+              "y": 21,
+              "width": 5,
+              "height": 2
+            }
+          },
+          {
+            "id": 7889041881022652,
+            "definition": {
+              "title": "Latency by Host",
+              "title_size": "16",
+              "title_align": "left",
+              "show_legend": true,
+              "legend_layout": "vertical",
+              "legend_columns": [
+                "avg",
+                "min",
+                "max",
+                "value",
+                "sum"
+              ],
+              "type": "timeseries",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit",
+                          "unit_name": "millisecond"
+                        }
+                      },
+                      "formula": "query1"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "name": "query1",
+                      "data_source": "metrics",
+                      "query": "avg:otelcol_loadbalancer_backend_latency_milliseconds{$env} by {host}"
+                    }
+                  ],
+                  "response_format": "timeseries",
+                  "style": {
+                    "palette": "datadog16",
+                    "order_by": "tags",
+                    "order_reverse": false,
+                    "line_type": "solid",
+                    "line_width": "normal"
+                  },
+                  "display_type": "bars"
+                }
+              ],
+              "markers": [
+                {
+                  "value": "y = 0",
+                  "display_type": "error dashed"
+                }
+              ]
+            },
+            "layout": {
+              "x": 5,
+              "y": 21,
+              "width": 7,
+              "height": 4
+            }
+          },
+          {
+            "id": 6252462384215478,
+            "definition": {
+              "title": "Change in Latency by Host",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "change",
+              "requests": [
+                {
+                  "increase_good": false,
+                  "order_by": "name",
+                  "change_type": "absolute",
+                  "order_dir": "asc",
+                  "response_format": "scalar",
+                  "formulas": [
+                    {
+                      "formula": "hour_before(query1)",
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit",
+                          "unit_name": "millisecond"
+                        }
+                      }
+                    },
+                    {
+                      "formula": "query1"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "name": "query1",
+                      "data_source": "metrics",
+                      "query": "avg:otelcol_loadbalancer_backend_latency_milliseconds{$env} by {host}",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "show_present": true
+                }
+              ]
+            },
+            "layout": {
+              "x": 0,
+              "y": 23,
+              "width": 5,
+              "height": 2
+            }
+          },
+          {
+            "id": 5612156649933792,
+            "definition": {
+              "type": "note",
+              "content": "# NOTE:\n\nTo utilize this dashboard, you must add attributes to your telemetry to tag which collector role received the initial telemetry.\n\n### Agent Collector\n\nAn Agent Collector should set an attribute named `collector.role` to `agent`.\n\n#### Example:\n\n```yaml\n  processors:\n    attributes/agent:\n      actions:\n        - key: collector.role\n          value: agent\n          action: insert\n...\n  service:\n    pipelines:\n      metrics:\n        receivers: [...]\n        processors:\n          - attributes/agent\n        exporters: [...]\n```\n\n### Gateway\n\nA Gateway Collector should set `collector.role` to `gateway`.\n\n#### Example:\n\n```yaml\n  processors:\n    attributes/gateway:\n      actions:\n        - key: collector.role\n          value: gateway\n          action: insert\n...\n  service:\n    pipelines:\n      metrics:\n        receivers: [...]\n        processors:\n          - attributes/gateway\n        exporters: [...]\n```",
+              "background_color": "yellow",
+              "font_size": "14",
+              "text_align": "left",
+              "vertical_align": "center",
+              "show_tick": false,
+              "tick_pos": "50%",
+              "tick_edge": "bottom",
+              "has_padding": true
+            },
+            "layout": {
+              "x": 0,
+              "y": 25,
+              "width": 12,
+              "height": 2
+            }
+          }
+        ]
+      },
+      "layout": {
+        "x": 0,
+        "y": 0,
+        "width": 12,
+        "height": 28
+      }
+    },
+    {
+      "id": 4811465718681366,
+      "definition": {
+        "title": "Gateway Collectors",
+        "background_color": "vivid_pink",
+        "show_title": true,
+        "type": "group",
+        "layout_type": "ordered",
+        "widgets": [
+          {
+            "id": 8877856817667424,
+            "definition": {
+              "type": "free_text",
+              "text": "Memory Limiter Processor",
+              "color": "#4d4d4d",
+              "font_size": "36",
+              "text_align": "center"
+            },
+            "layout": {
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 1
+            }
+          },
+          {
+            "id": 1016989685728440,
+            "definition": {
+              "title": "Accepted Metric Points",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_processor_accepted_metric_points_total{collector.role:gateway,processor:memory_limiter,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar"
+                }
+              ],
+              "autoscale": false,
+              "precision": 0,
+              "timeseries_background": {
+                "yaxis": {},
+                "type": "bars"
+              }
+            },
+            "layout": {
+              "x": 0,
+              "y": 1,
+              "width": 4,
+              "height": 2
+            }
+          },
+          {
+            "id": 7154646675631842,
+            "definition": {
+              "title": "Accepted Spans",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_processor_accepted_spans_total{collector.role:gateway,processor:memory_limiter,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar"
+                }
+              ],
+              "autoscale": false,
+              "precision": 0,
+              "timeseries_background": {
+                "yaxis": {},
+                "type": "bars"
+              }
+            },
+            "layout": {
+              "x": 4,
+              "y": 1,
+              "width": 4,
+              "height": 2
+            }
+          },
+          {
+            "id": 3857285556609174,
+            "definition": {
+              "title": "Accepted Log Records",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_processor_accepted_log_records_total{collector.role:gateway,processor:memory_limiter,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar"
+                }
+              ],
+              "autoscale": false,
+              "precision": 0,
+              "timeseries_background": {
+                "yaxis": {},
+                "type": "bars"
+              }
+            },
+            "layout": {
+              "x": 8,
+              "y": 1,
+              "width": 4,
+              "height": 2
+            }
+          },
+          {
+            "id": 2720313713895194,
+            "definition": {
+              "title": "Refused Metric Points",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "formula": "default_zero(query2)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query2",
+                      "query": "sum:otelcol_processor_refused_metric_points_total{collector.role:gateway,processor:memory_limiter,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "conditional_formats": [
+                    {
+                      "comparator": "=",
+                      "value": 0,
+                      "palette": "white_on_green"
+                    },
+                    {
+                      "comparator": ">",
+                      "value": 0,
+                      "palette": "white_on_red"
+                    }
+                  ]
+                }
+              ],
+              "autoscale": true,
+              "precision": 2,
+              "timeseries_background": {
+                "type": "area"
+              }
+            },
+            "layout": {
+              "x": 0,
+              "y": 3,
+              "width": 4,
+              "height": 1
+            }
+          },
+          {
+            "id": 460310296541328,
+            "definition": {
+              "title": "Refused Spans",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "formula": "default_zero(query2)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query2",
+                      "query": "sum:otelcol_processor_refused_spans_total{collector.role:gateway,processor:memory_limiter,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "conditional_formats": [
+                    {
+                      "comparator": "=",
+                      "value": 0,
+                      "palette": "white_on_green"
+                    },
+                    {
+                      "comparator": ">",
+                      "value": 0,
+                      "palette": "white_on_red"
+                    }
+                  ]
+                }
+              ],
+              "autoscale": true,
+              "precision": 2,
+              "timeseries_background": {
+                "type": "area"
+              }
+            },
+            "layout": {
+              "x": 4,
+              "y": 3,
+              "width": 4,
+              "height": 1
+            }
+          },
+          {
+            "id": 2235253169807020,
+            "definition": {
+              "title": "Refused Log Records",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "formula": "default_zero(query2)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query2",
+                      "query": "sum:otelcol_processor_refused_log_records_total{collector.role:gateway,processor:memory_limiter,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "conditional_formats": [
+                    {
+                      "comparator": "=",
+                      "value": 0,
+                      "palette": "white_on_green"
+                    },
+                    {
+                      "comparator": ">",
+                      "value": 0,
+                      "palette": "white_on_red"
+                    }
+                  ]
+                }
+              ],
+              "autoscale": true,
+              "precision": 2,
+              "timeseries_background": {
+                "type": "area"
+              }
+            },
+            "layout": {
+              "x": 8,
+              "y": 3,
+              "width": 4,
+              "height": 1
+            }
+          },
+          {
+            "id": 1493134238162778,
+            "definition": {
+              "type": "free_text",
+              "text": "Batch Processor",
+              "color": "#4d4d4d",
+              "font_size": "36",
+              "text_align": "center"
+            },
+            "layout": {
+              "x": 0,
+              "y": 4,
+              "width": 12,
+              "height": 1
+            }
+          },
+          {
+            "id": 512139510301798,
+            "definition": {
+              "title": "Send Size - Metrics",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "avg:otelcol_processor_batch_batch_send_size{collector.role:gateway,processor:batch/metrics,$env}",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar"
+                }
+              ],
+              "autoscale": false,
+              "precision": 0,
+              "timeseries_background": {
+                "yaxis": {},
+                "type": "bars"
+              }
+            },
+            "layout": {
+              "x": 0,
+              "y": 5,
+              "width": 4,
+              "height": 2
+            }
+          },
+          {
+            "id": 1047468648566200,
+            "definition": {
+              "title": "Send Size - Spans",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "avg:otelcol_processor_batch_batch_send_size{collector.role:gateway,processor:batch/traces,$env}",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar"
+                }
+              ],
+              "autoscale": false,
+              "precision": 0,
+              "timeseries_background": {
+                "yaxis": {},
+                "type": "bars"
+              }
+            },
+            "layout": {
+              "x": 4,
+              "y": 5,
+              "width": 4,
+              "height": 2
+            }
+          },
+          {
+            "id": 2253675989937618,
+            "definition": {
+              "title": "Send Size - Logs",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "query1"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "avg:otelcol_processor_batch_batch_send_size{collector.role:gateway,processor:batch/logs,$env}",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar"
+                }
+              ],
+              "autoscale": false,
+              "precision": 0,
+              "timeseries_background": {
+                "yaxis": {},
+                "type": "bars"
+              }
+            },
+            "layout": {
+              "x": 8,
+              "y": 5,
+              "width": 4,
+              "height": 2
+            }
+          },
+          {
+            "id": 6636595395915806,
+            "definition": {
+              "title": "Send Rate by Host - Metrics",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "toplist",
+              "requests": [
+                {
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_processor_batch_batch_send_size{collector.role:gateway,processor:batch/metrics,$env} by {host}.as_count()",
+                      "aggregator": "sum"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "formulas": [
+                    {
+                      "formula": "query1"
+                    }
+                  ],
+                  "sort": {
+                    "count": 10,
+                    "order_by": [
+                      {
+                        "type": "formula",
+                        "index": 0,
+                        "order": "desc"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "style": {
+                "display": {
+                  "type": "stacked",
+                  "legend": "automatic"
+                }
+              }
+            },
+            "layout": {
+              "x": 0,
+              "y": 7,
+              "width": 4,
+              "height": 2
+            }
+          },
+          {
+            "id": 8032279076030082,
+            "definition": {
+              "title": "Send Rate by Host - Spans/sec",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "toplist",
+              "requests": [
+                {
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_processor_batch_batch_send_size{collector.role:gateway,processor:batch/traces,$env} by {host}.as_rate()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit",
+                          "unit_name": "span",
+                          "per_unit_name": "second"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "sort": {
+                    "count": 10,
+                    "order_by": [
+                      {
+                        "type": "formula",
+                        "index": 0,
+                        "order": "desc"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "style": {
+                "display": {
+                  "type": "stacked",
+                  "legend": "automatic"
+                }
+              }
+            },
+            "layout": {
+              "x": 4,
+              "y": 7,
+              "width": 4,
+              "height": 2
+            }
+          },
+          {
+            "id": 7688984189114519,
+            "definition": {
+              "title": "Send Rate by Host - Logs/sec",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "toplist",
+              "requests": [
+                {
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_processor_batch_batch_send_size{collector.role:gateway,processor:batch/logs,$env} by {host}.as_count()",
+                      "aggregator": "sum"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit",
+                          "unit_name": "entry",
+                          "per_unit_name": "second"
+                        }
+                      },
+                      "formula": "query1"
+                    }
+                  ],
+                  "sort": {
+                    "count": 10,
+                    "order_by": [
+                      {
+                        "type": "formula",
+                        "index": 0,
+                        "order": "desc"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "style": {
+                "display": {
+                  "type": "stacked",
+                  "legend": "automatic"
+                }
+              }
+            },
+            "layout": {
+              "x": 8,
+              "y": 7,
+              "width": 4,
+              "height": 2
+            }
+          },
+          {
+            "id": 4256475191769810,
+            "definition": {
+              "type": "free_text",
+              "text": "Size Triggers",
+              "color": "#4d4d4d",
+              "font_size": "24",
+              "text_align": "center"
+            },
+            "layout": {
+              "x": 0,
+              "y": 9,
+              "width": 6,
+              "height": 1
+            }
+          },
+          {
+            "id": 5721566281383166,
+            "definition": {
+              "type": "free_text",
+              "text": "Timeout Triggers",
+              "color": "#4d4d4d",
+              "font_size": "24",
+              "text_align": "center"
+            },
+            "layout": {
+              "x": 6,
+              "y": 9,
+              "width": 6,
+              "height": 1
+            }
+          },
+          {
+            "id": 5766661774456264,
+            "definition": {
+              "title": "Metrics",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "name": "query1",
+                      "data_source": "metrics",
+                      "query": "sum:otelcol_processor_batch_batch_size_trigger_send_total{collector.role:gateway,processor:batch/metrics,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "conditional_formats": [
+                    {
+                      "comparator": ">",
+                      "value": 0,
+                      "palette": "white_on_yellow"
+                    },
+                    {
+                      "comparator": "=",
+                      "value": 0,
+                      "palette": "white_on_green"
+                    }
+                  ]
+                }
+              ],
+              "autoscale": true,
+              "text_align": "center",
+              "precision": 0,
+              "timeseries_background": {
+                "yaxis": {},
+                "type": "bars"
+              }
+            },
+            "layout": {
+              "x": 0,
+              "y": 10,
+              "width": 2,
+              "height": 2
+            }
+          },
+          {
+            "id": 6568094075882658,
+            "definition": {
+              "title": "Spans",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "name": "query1",
+                      "data_source": "metrics",
+                      "query": "sum:otelcol_processor_batch_batch_size_trigger_send_total{collector.role:gateway,processor:batch/traces,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "conditional_formats": [
+                    {
+                      "comparator": ">",
+                      "value": 0,
+                      "palette": "white_on_yellow"
+                    },
+                    {
+                      "comparator": "=",
+                      "value": 0,
+                      "palette": "white_on_green"
+                    }
+                  ]
+                }
+              ],
+              "autoscale": true,
+              "text_align": "center",
+              "precision": 0,
+              "timeseries_background": {
+                "yaxis": {},
+                "type": "bars"
+              }
+            },
+            "layout": {
+              "x": 2,
+              "y": 10,
+              "width": 2,
+              "height": 2
+            }
+          },
+          {
+            "id": 6683484125862128,
+            "definition": {
+              "title": "Logs",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "name": "query1",
+                      "data_source": "metrics",
+                      "query": "sum:otelcol_processor_batch_batch_size_trigger_send_total{collector.role:gateway,processor:batch/logs,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "conditional_formats": [
+                    {
+                      "comparator": ">",
+                      "value": 0,
+                      "palette": "white_on_yellow"
+                    },
+                    {
+                      "comparator": "=",
+                      "value": 0,
+                      "palette": "white_on_green"
+                    }
+                  ]
+                }
+              ],
+              "autoscale": true,
+              "text_align": "center",
+              "precision": 0,
+              "timeseries_background": {
+                "yaxis": {},
+                "type": "bars"
+              }
+            },
+            "layout": {
+              "x": 4,
+              "y": 10,
+              "width": 2,
+              "height": 2
+            }
+          },
+          {
+            "id": 1035259026949146,
+            "definition": {
+              "title": "Metrics",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_processor_batch_timeout_trigger_send_total{collector.role:gateway,processor:batch/metrics,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar"
+                }
+              ],
+              "autoscale": true,
+              "precision": 0,
+              "timeseries_background": {
+                "yaxis": {},
+                "type": "bars"
+              }
+            },
+            "layout": {
+              "x": 6,
+              "y": 10,
+              "width": 2,
+              "height": 2
+            }
+          },
+          {
+            "id": 1259422400969612,
+            "definition": {
+              "title": "Spans",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_processor_batch_timeout_trigger_send_total{collector.role:gateway,processor:batch/traces,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar"
+                }
+              ],
+              "autoscale": true,
+              "precision": 0,
+              "timeseries_background": {
+                "yaxis": {},
+                "type": "bars"
+              }
+            },
+            "layout": {
+              "x": 8,
+              "y": 10,
+              "width": 2,
+              "height": 2
+            }
+          },
+          {
+            "id": 134867599529220,
+            "definition": {
+              "title": "Logs",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_processor_batch_timeout_trigger_send_total{collector.role:gateway,processor:batch/logs,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar"
+                }
+              ],
+              "autoscale": true,
+              "precision": 0,
+              "timeseries_background": {
+                "yaxis": {},
+                "type": "bars"
+              }
+            },
+            "layout": {
+              "x": 10,
+              "y": 10,
+              "width": 2,
+              "height": 2
+            }
+          },
+          {
+            "id": 7109352406412220,
+            "definition": {
+              "title": "Send Size by Host",
+              "title_size": "16",
+              "title_align": "left",
+              "requests": [
+                {
+                  "queries": [
+                    {
+                      "name": "query1",
+                      "data_source": "metrics",
+                      "query": "sum:otelcol_processor_batch_batch_send_size{collector.role:gateway,$env} by {host}.as_count()",
+                      "aggregator": "sum"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "style": {
+                    "palette": "datadog16"
+                  },
+                  "formulas": [
+                    {
+                      "formula": "query1"
+                    }
+                  ],
+                  "sort": {
+                    "count": 500,
+                    "order_by": [
+                      {
+                        "type": "formula",
+                        "index": 0,
+                        "order": "desc"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "type": "sunburst",
+              "legend": {
+                "type": "automatic"
+              }
+            },
+            "layout": {
+              "x": 0,
+              "y": 12,
+              "width": 6,
+              "height": 3
+            }
+          },
+          {
+            "id": 1072736322141832,
+            "definition": {
+              "title": "Batch Send Size by Signal Type",
+              "title_size": "16",
+              "title_align": "left",
+              "requests": [
+                {
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "avg:otelcol_processor_batch_batch_send_size{collector.role:gateway,$env} by {processor}",
+                      "aggregator": "sum"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "style": {
+                    "palette": "datadog16"
+                  },
+                  "formulas": [
+                    {
+                      "formula": "query1"
+                    }
+                  ],
+                  "sort": {
+                    "count": 500,
+                    "order_by": [
+                      {
+                        "type": "formula",
+                        "index": 0,
+                        "order": "desc"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "type": "sunburst",
+              "legend": {
+                "type": "automatic"
+              }
+            },
+            "layout": {
+              "x": 6,
+              "y": 12,
+              "width": 6,
+              "height": 3
+            }
+          },
+          {
+            "id": 4770675336076062,
+            "definition": {
+              "type": "free_text",
+              "text": "Exporters",
+              "color": "#4d4d4d",
+              "font_size": "36",
+              "text_align": "center"
+            },
+            "layout": {
+              "x": 0,
+              "y": 15,
+              "width": 12,
+              "height": 1
+            }
+          },
+          {
+            "id": 4482102313507495,
+            "definition": {
+              "title": "Exporter Queue Capacity",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_exporter_queue_capacity{collector.role:gateway,exporter:datadog,$env}",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar"
+                }
+              ],
+              "autoscale": true,
+              "custom_links": [
+                {
+                  "label": "Metric Description",
+                  "link": "https://github.com/open-telemetry/opentelemetry-collector/blob/main/exporter/exporterhelper/documentation.md#otelcol_exporter_queue_capacity"
+                }
+              ],
+              "precision": 2
+            },
+            "layout": {
+              "x": 0,
+              "y": 16,
+              "width": 6,
+              "height": 1
+            }
+          },
+          {
+            "id": 2072915951573704,
+            "definition": {
+              "title": "Exporter Queue Size",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_exporter_queue_size{collector.role:gateway,exporter:datadog,$env}",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar"
+                }
+              ],
+              "autoscale": true,
+              "custom_links": [
+                {
+                  "label": "Metric Description",
+                  "link": "https://github.com/open-telemetry/opentelemetry-collector/blob/main/exporter/exporterhelper/documentation.md#otelcol_exporter_queue_size"
+                }
+              ],
+              "precision": 2,
+              "timeseries_background": {
+                "yaxis": {},
+                "type": "bars"
+              }
+            },
+            "layout": {
+              "x": 6,
+              "y": 16,
+              "width": 6,
+              "height": 1
+            }
+          },
+          {
+            "id": 1517354639358626,
+            "definition": {
+              "title": "Sent Metric Points",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_exporter_sent_metric_points_total{collector.role:gateway,exporter:datadog,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar"
+                }
+              ],
+              "autoscale": false,
+              "precision": 0,
+              "timeseries_background": {
+                "yaxis": {},
+                "type": "bars"
+              }
+            },
+            "layout": {
+              "x": 0,
+              "y": 17,
+              "width": 4,
+              "height": 2
+            }
+          },
+          {
+            "id": 4364346925737340,
+            "definition": {
+              "title": "Sent Spans Records",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_exporter_sent_spans_total{collector.role:gateway,exporter:datadog,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar"
+                }
+              ],
+              "autoscale": false,
+              "precision": 0,
+              "timeseries_background": {
+                "yaxis": {},
+                "type": "bars"
+              }
+            },
+            "layout": {
+              "x": 4,
+              "y": 17,
+              "width": 4,
+              "height": 2
+            }
+          },
+          {
+            "id": 5650072392949536,
+            "definition": {
+              "title": "Sent Log Records",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_exporter_sent_log_records_total{collector.role:gateway,exporter:datadog,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar"
+                }
+              ],
+              "autoscale": false,
+              "precision": 0,
+              "timeseries_background": {
+                "yaxis": {},
+                "type": "bars"
+              }
+            },
+            "layout": {
+              "x": 8,
+              "y": 17,
+              "width": 4,
+              "height": 2
+            }
+          },
+          {
+            "id": 4925928222888419,
+            "definition": {
+              "title": "Enqueue Metric Failures",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_exporter_enqueue_failed_metric_points{collector.role:gateway,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "conditional_formats": [
+                    {
+                      "comparator": "=",
+                      "value": 0,
+                      "palette": "white_on_green"
+                    },
+                    {
+                      "comparator": ">",
+                      "value": 0,
+                      "palette": "white_on_red"
+                    }
+                  ]
+                }
+              ],
+              "autoscale": true,
+              "custom_links": [
+                {
+                  "label": "Metric Description",
+                  "link": "https://github.com/open-telemetry/opentelemetry-collector/blob/main/exporter/exporterhelper/documentation.md#otelcol_exporter_enqueue_failed_metric_points"
+                }
+              ],
+              "precision": 2,
+              "timeseries_background": {
+                "type": "area"
+              }
+            },
+            "layout": {
+              "x": 0,
+              "y": 19,
+              "width": 2,
+              "height": 1
+            }
+          },
+          {
+            "id": 6211301487168318,
+            "definition": {
+              "title": "Send Failed Metric Points",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_exporter_send_failed_metric_points{collector.role:gateway,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "conditional_formats": [
+                    {
+                      "comparator": "=",
+                      "value": 0,
+                      "palette": "white_on_green"
+                    },
+                    {
+                      "comparator": ">",
+                      "value": 0,
+                      "palette": "white_on_red"
+                    }
+                  ]
+                }
+              ],
+              "autoscale": true,
+              "precision": 2,
+              "timeseries_background": {
+                "type": "area"
+              }
+            },
+            "layout": {
+              "x": 2,
+              "y": 19,
+              "width": 2,
+              "height": 1
+            }
+          },
+          {
+            "id": 1937597297423882,
+            "definition": {
+              "title": "Enqueue Span Failures",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_exporter_enqueue_failed_metric_points{collector.role:gateway,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "conditional_formats": [
+                    {
+                      "comparator": "=",
+                      "value": 0,
+                      "palette": "white_on_green"
+                    },
+                    {
+                      "comparator": ">",
+                      "value": 0,
+                      "palette": "white_on_red"
+                    }
+                  ]
+                }
+              ],
+              "autoscale": true,
+              "custom_links": [
+                {
+                  "label": "Metric Description",
+                  "link": "https://github.com/open-telemetry/opentelemetry-collector/blob/main/exporter/exporterhelper/documentation.md#otelcol_exporter_enqueue_failed_spans"
+                }
+              ],
+              "precision": 2,
+              "timeseries_background": {
+                "type": "area"
+              }
+            },
+            "layout": {
+              "x": 4,
+              "y": 19,
+              "width": 2,
+              "height": 1
+            }
+          },
+          {
+            "id": 4456659039121728,
+            "definition": {
+              "title": "Send Failed Spans Records",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_exporter_send_failed_spans{collector.role:gateway,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "conditional_formats": [
+                    {
+                      "comparator": "=",
+                      "value": 0,
+                      "palette": "white_on_green"
+                    },
+                    {
+                      "comparator": ">",
+                      "value": 0,
+                      "palette": "white_on_red"
+                    }
+                  ]
+                }
+              ],
+              "autoscale": true,
+              "precision": 2,
+              "timeseries_background": {
+                "type": "area"
+              }
+            },
+            "layout": {
+              "x": 6,
+              "y": 19,
+              "width": 2,
+              "height": 1
+            }
+          },
+          {
+            "id": 6794472426171619,
+            "definition": {
+              "title": "Enqueue Log Failures",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_exporter_enqueue_failed_metric_points{collector.role:gateway,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "conditional_formats": [
+                    {
+                      "comparator": "=",
+                      "value": 0,
+                      "palette": "white_on_green"
+                    },
+                    {
+                      "comparator": ">",
+                      "value": 0,
+                      "palette": "white_on_red"
+                    }
+                  ]
+                }
+              ],
+              "autoscale": true,
+              "custom_links": [
+                {
+                  "label": "Metric Description",
+                  "link": "https://github.com/open-telemetry/opentelemetry-collector/blob/main/exporter/exporterhelper/documentation.md#otelcol_exporter_enqueue_failed_log_records"
+                }
+              ],
+              "precision": 2,
+              "timeseries_background": {
+                "type": "area"
+              }
+            },
+            "layout": {
+              "x": 8,
+              "y": 19,
+              "width": 2,
+              "height": 1
+            }
+          },
+          {
+            "id": 8075734382635718,
+            "definition": {
+              "title": "Send Failed Log Records",
+              "title_size": "16",
+              "title_align": "left",
+              "type": "query_value",
+              "requests": [
+                {
+                  "formulas": [
+                    {
+                      "number_format": {
+                        "unit": {
+                          "type": "canonical_unit"
+                        }
+                      },
+                      "formula": "default_zero(query1)"
+                    }
+                  ],
+                  "queries": [
+                    {
+                      "data_source": "metrics",
+                      "name": "query1",
+                      "query": "sum:otelcol_exporter_send_failed_log_records{collector.role:gateway,$env}.as_count()",
+                      "aggregator": "avg"
+                    }
+                  ],
+                  "response_format": "scalar",
+                  "conditional_formats": [
+                    {
+                      "comparator": "=",
+                      "value": 0,
+                      "palette": "white_on_green"
+                    },
+                    {
+                      "comparator": ">",
+                      "value": 0,
+                      "palette": "white_on_red"
+                    }
+                  ]
+                }
+              ],
+              "autoscale": true,
+              "precision": 2,
+              "timeseries_background": {
+                "type": "area"
+              }
+            },
+            "layout": {
+              "x": 10,
+              "y": 19,
+              "width": 2,
+              "height": 1
+            }
+          }
+        ]
+      },
+      "layout": {
+        "x": 0,
+        "y": 0,
+        "width": 12,
+        "height": 21,
+        "is_column_break": true
+      }
+    }
+  ],
+  "template_variables": [
+    {
+      "name": "env",
+      "prefix": "env",
+      "available_values": [],
+      "default": "*"
+    }
+  ],
+  "layout_type": "ordered",
+  "notify_list": [],
+  "reflow_type": "fixed"
+}

@@ -1,0 +1,72 @@
+{
+  "ssm:account=652026215310:parameterName=/stickerlandia/dev/shared/cloudfront-endpoint:region=us-west-2": "d3as032ofuxdey.cloudfront.net",
+  "ssm:account=652026215310:parameterName=/stickerlandia/dev/shared/cloudfront-id:region=us-west-2": "E3VHDUGKLKTAX7",
+  "ssm:account=652026215310:parameterName=/stickerlandia/dev/shared/vpc-id:region=us-west-2": "vpc-0223c3182a4c0f86c",
+  "ssm:account=652026215310:parameterName=/stickerlandia/dev/shared/eb-name:region=us-west-2": "stickerlandia-dev-event-bus",
+  "ssm:account=652026215310:parameterName=/stickerlandia/dev/shared/database-identifier:region=us-west-2": "stickerlandia-dev-db",
+  "ssm:account=652026215310:parameterName=/stickerlandia/dev/shared/database-endpoint:region=us-west-2": "stickerlandia-dev-db.cluster-cr82o240cdzq.us-west-2.rds.amazonaws.com",
+  "ssm:account=652026215310:parameterName=/stickerlandia/dev/shared/database-resource-identifier:region=us-west-2": "cluster-KV7P3DFFWDCOHDKBSLRWK7RRNA",
+  "ssm:account=652026215310:parameterName=/stickerlandia/dev/shared/database-secret-arn:region=us-west-2": "arn:aws:secretsmanager:us-west-2:652026215310:secret:PersistenceSharedDBSecret6B-EwTkiVZS8bVp-w7fbti",
+  "vpc-provider:account=652026215310:filter.vpc-id=vpc-0223c3182a4c0f86c:region=us-west-2:returnAsymmetricSubnets=true": {
+    "vpcId": "vpc-0223c3182a4c0f86c",
+    "vpcCidrBlock": "10.0.0.0/16",
+    "ownerAccountId": "652026215310",
+    "availabilityZones": [],
+    "subnetGroups": [
+      {
+        "name": "Public",
+        "type": "Public",
+        "subnets": [
+          {
+            "subnetId": "subnet-09c071ba364accaa4",
+            "cidr": "10.0.0.0/24",
+            "availabilityZone": "us-west-2a",
+            "routeTableId": "rtb-0456fbe3f10916dce"
+          },
+          {
+            "subnetId": "subnet-0c641ec3ff6412898",
+            "cidr": "10.0.1.0/24",
+            "availabilityZone": "us-west-2b",
+            "routeTableId": "rtb-018cc491d0e85a3ab"
+          }
+        ]
+      },
+      {
+        "name": "Isolated",
+        "type": "Isolated",
+        "subnets": [
+          {
+            "subnetId": "subnet-03e4b5ad0bb7950c7",
+            "cidr": "10.0.4.0/24",
+            "availabilityZone": "us-west-2a",
+            "routeTableId": "rtb-003ce43e61c0c83ef"
+          },
+          {
+            "subnetId": "subnet-027156482c3266ef4",
+            "cidr": "10.0.5.0/24",
+            "availabilityZone": "us-west-2b",
+            "routeTableId": "rtb-0b28fbee67d0ce352"
+          }
+        ]
+      },
+      {
+        "name": "Private",
+        "type": "Private",
+        "subnets": [
+          {
+            "subnetId": "subnet-05320bb6cc35c652f",
+            "cidr": "10.0.2.0/24",
+            "availabilityZone": "us-west-2a",
+            "routeTableId": "rtb-04319b3e958345e09"
+          },
+          {
+            "subnetId": "subnet-077a94be7cb0cce8e",
+            "cidr": "10.0.3.0/24",
+            "availabilityZone": "us-west-2b",
+            "routeTableId": "rtb-0dca8fea90370d734"
+          }
+        ]
+      }
+    ]
+  }
+}

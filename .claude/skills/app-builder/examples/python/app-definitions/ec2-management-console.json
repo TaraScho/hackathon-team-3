@@ -1,0 +1,838 @@
+{
+    "queries": [
+      {
+        "id": "e8b2f370-4ae5-4ea5-807a-1c8936aad2c6",
+        "name": "listInstances",
+        "type": "action",
+        "properties": {
+          "outputs": "${((outputs) => {// Use `outputs` to reference the query's unformatted output.\n\n// TODO: Apply transformations to the raw query output\n\nreturn {\n    instances: outputs.instances.map(i => {\n        const name = i.Tags.find(tag => tag.Key === 'Name')?.Value\n        return {\n            ...i,\n            Name: name,\n            State: i.State.Name\n        }\n    }).filter(i => {\n\n        const matchesName = name.value?.length ? i.Name?.toLowerCase().includes(name.value) : true;\n        const matchesInstanceType = instanceType.value !== 'All Instance Types' ? i.InstanceType === instanceType.value : true;\n        const matchesState = state.value !== 'All States' ? i.State === state.value : true;\n\n        return matchesName && matchesInstanceType && matchesState;\n    })\n}})(self.rawOutputs)}",
+          "spec": {
+            "connectionId": "2a8a6d56-4c60-4772-9f1e-69bafed9f0ae",
+            "fqn": "com.datadoghq.aws.ec2.describe_ec2_instances",
+            "inputs": {
+              "maxResults": 500,
+              "region": "us-east-1"
+            }
+          }
+        }
+      },
+      {
+        "id": "6b497c50-b989-44c9-9b30-f16a3d5945ac",
+        "name": "startInstance",
+        "type": "action",
+        "properties": {
+          "onlyTriggerManually": true,
+          "requiresConfirmation": true,
+          "showToastOnError": true,
+          "spec": {
+            "connectionId": "2a8a6d56-4c60-4772-9f1e-69bafed9f0ae",
+            "fqn": "com.datadoghq.aws.ec2.start_ec2_instance",
+            "inputs": {
+              "instanceId": "${table0.selectedRow?.content.InstanceId}",
+              "region": "us-east-1"
+            }
+          }
+        },
+        "events": [
+          {
+            "name": "executionFinished",
+            "queryName": "listInstances",
+            "type": "triggerQuery"
+          }
+        ]
+      },
+      {
+        "id": "ea2d8f97-227a-437c-84b3-6d100579dd30",
+        "name": "stopInstance",
+        "type": "action",
+        "properties": {
+          "onlyTriggerManually": true,
+          "requiresConfirmation": true,
+          "showToastOnError": true,
+          "spec": {
+            "connectionId": "2a8a6d56-4c60-4772-9f1e-69bafed9f0ae",
+            "fqn": "com.datadoghq.aws.ec2.stop_ec2_instance",
+            "inputs": {
+              "instanceId": "${table0.selectedRow?.content.InstanceId}",
+              "region": "us-east-1"
+            }
+          }
+        },
+        "events": [
+          {
+            "name": "executionFinished",
+            "queryName": "listInstances",
+            "type": "triggerQuery"
+          }
+        ]
+      },
+      {
+        "id": "f439baa1-b753-4af7-8ea8-1a331b52c88c",
+        "name": "rebootInstance",
+        "type": "action",
+        "properties": {
+          "onlyTriggerManually": true,
+          "requiresConfirmation": true,
+          "showToastOnError": true,
+          "spec": {
+            "connectionId": "2a8a6d56-4c60-4772-9f1e-69bafed9f0ae",
+            "fqn": "com.datadoghq.aws.ec2.reboot_ec2_instance",
+            "inputs": {
+              "instanceId": "${table0.selectedRow?.content.InstanceId}",
+              "region": "us-east-1"
+            }
+          }
+        },
+        "events": [
+          {
+            "name": "executionFinished",
+            "queryName": "listInstances",
+            "type": "triggerQuery"
+          }
+        ]
+      }
+    ],
+    "id": "7b4cec8b-1f06-4c7b-be50-ede5b001cd5c",
+    "components": [
+      {
+        "events": [],
+        "name": "grid0",
+        "properties": {
+          "children": [
+            {
+              "events": [],
+              "name": "gridCell0",
+              "properties": {
+                "children": [
+                  {
+                    "events": [],
+                    "name": "table0",
+                    "properties": {
+                      "columns": [
+                        {
+                          "dataPath": "Name",
+                          "header": "Name",
+                          "id": "13e29967-ad14-49d3-9ad0-7068132c551f",
+                          "isHidden": false
+                        },
+                        {
+                          "dataPath": "InstanceId",
+                          "disableSortBy": false,
+                          "formatter": {
+                            "type": "none"
+                          },
+                          "header": "Instance Id",
+                          "id": "5ff969ce-bc4b-4805-b610-5d4afb2baed6"
+                        },
+                        {
+                          "dataPath": "InstanceType",
+                          "disableSortBy": false,
+                          "formatter": {
+                            "type": "tags"
+                          },
+                          "header": "Instance Type",
+                          "id": "218b5a59-0c0b-459c-b804-58af365265c3"
+                        },
+                        {
+                          "dataPath": "AmiLaunchIndex",
+                          "header": "AmiLaunchIndex",
+                          "id": "479594f2-837c-4ced-95b2-ff6c454df938",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "Architecture",
+                          "disableSortBy": false,
+                          "formatter": {
+                            "type": "tags"
+                          },
+                          "header": "Architecture",
+                          "id": "99d73915-b93b-4368-b59b-f78ed0c3ced5",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "BlockDeviceMappings",
+                          "header": "BlockDeviceMappings",
+                          "id": "85184e14-ed21-4d82-9159-567ed8bcc450",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "CapacityReservationSpecification",
+                          "header": "CapacityReservationSpecification",
+                          "id": "5896174c-3368-4eee-84a8-975d8de46cf2",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "ClientToken",
+                          "header": "ClientToken",
+                          "id": "d23e1b86-8f12-4ea1-821e-dd72a40922d1",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "CpuOptions",
+                          "header": "CpuOptions",
+                          "id": "69e0fa34-6b6a-4ed2-9530-68cdb7bd926e",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "EbsOptimized",
+                          "header": "EbsOptimized",
+                          "id": "3e5e5e99-32b0-416b-a106-2deb63c5cfa4",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "ElasticGpuAssociations",
+                          "header": "ElasticGpuAssociations",
+                          "id": "659066d5-07ad-47db-865d-a1c8af901815",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "ElasticInferenceAcceleratorAssociations",
+                          "header": "ElasticInferenceAcceleratorAssociations",
+                          "id": "63ef656f-f4c4-402d-8713-cfe5db9f6dc7",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "EnaSupport",
+                          "header": "EnaSupport",
+                          "id": "d4698de1-6807-45ae-a890-b7a78390cd2e",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "EnclaveOptions",
+                          "header": "EnclaveOptions",
+                          "id": "65533a26-6379-472f-93ce-b322af223c5f",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "HibernationOptions",
+                          "header": "HibernationOptions",
+                          "id": "20948732-2f79-4efc-a07a-f205fa8e833d",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "Hypervisor",
+                          "header": "Hypervisor",
+                          "id": "5a0d2621-c008-4996-a430-deb6583f1a53",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "ImageId",
+                          "header": "ImageId",
+                          "id": "a9a6134e-0087-4cea-818f-74e2d6668c30",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "KeyName",
+                          "header": "KeyName",
+                          "id": "e855d97c-4e17-4123-877b-7448e7e28347",
+                          "isDeleted": true,
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "LaunchTime",
+                          "header": "LaunchTime",
+                          "id": "ba7bc917-102f-4ecb-b6c9-af07c7116d4c",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "Licenses",
+                          "header": "Licenses",
+                          "id": "20a23185-0074-4b59-b240-d60acaa68e81",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "MaintenanceOptions",
+                          "header": "MaintenanceOptions",
+                          "id": "cdf3de7e-9ebd-44b7-b429-f035569e5477",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "MetadataOptions",
+                          "header": "MetadataOptions",
+                          "id": "0002187b-7c60-4e6f-9fe2-b7f6fc3158f8",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "Monitoring",
+                          "header": "Monitoring",
+                          "id": "f323b697-e55b-4b54-a32b-c9d9a3205371",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "NetworkInterfaces",
+                          "header": "NetworkInterfaces",
+                          "id": "0cde32ac-2393-41b9-9d31-fefc47b064d7",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "Placement",
+                          "header": "Placement",
+                          "id": "c92cc7c2-93e8-46d4-a7f5-f565e140de23",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "PlatformDetails",
+                          "header": "PlatformDetails",
+                          "id": "5c94fd28-ec01-4e77-8dac-baec207ef391",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "PrivateDnsName",
+                          "header": "PrivateDnsName",
+                          "id": "467db3ac-08bf-4ffa-b821-4bea61794687",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "PrivateDnsNameOptions",
+                          "header": "PrivateDnsNameOptions",
+                          "id": "9cd9fce1-a55e-42c0-9b80-4ad88b20d885",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "PrivateIpAddress",
+                          "header": "PrivateIpAddress",
+                          "id": "1f627de5-788c-484f-b139-657c48f8a43d",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "ProductCodes",
+                          "header": "ProductCodes",
+                          "id": "87aad267-35c0-4fed-ad64-1fd5b2abd0e6",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "PublicDnsName",
+                          "header": "PublicDnsName",
+                          "id": "b19b9e13-404f-4648-a845-5b2b044525f4",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "RootDeviceName",
+                          "header": "RootDeviceName",
+                          "id": "d3198f32-09b4-47db-9740-296a3f19f950",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "RootDeviceType",
+                          "header": "RootDeviceType",
+                          "id": "f51f1703-644c-4506-8727-f887f958fe91",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "SecurityGroups",
+                          "header": "SecurityGroups",
+                          "id": "93e50dd0-7cb1-4499-a525-933ac59a30bb",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "SourceDestCheck",
+                          "header": "SourceDestCheck",
+                          "id": "a1bc8996-c34d-46b5-aba2-fe6ae1511940",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "State",
+                          "disableSortBy": false,
+                          "formatter": {
+                            "isSoft": true,
+                            "options": [
+                              {
+                                "level": "success",
+                                "value": "running"
+                              },
+                              {
+                                "level": "warning",
+                                "value": "pending"
+                              },
+                              {
+                                "level": "default",
+                                "value": "stopped"
+                              },
+                              {
+                                "level": "warning",
+                                "value": "stopping"
+                              },
+                              {
+                                "level": "danger",
+                                "value": "terminated"
+                              }
+                            ],
+                            "type": "pill"
+                          },
+                          "header": "State",
+                          "id": "111460c1-f8c9-45d8-9db6-d90a48f1565d"
+                        },
+                        {
+                          "dataPath": "StateTransitionReason",
+                          "header": "StateTransitionReason",
+                          "id": "f6639722-ef65-4fa0-aa59-9ddc65dc87f7",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "SubnetId",
+                          "header": "SubnetId",
+                          "id": "9b38ea36-d162-4fb1-ad66-e152ce2729ff",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "Tags",
+                          "header": "Tags",
+                          "id": "957ae3e2-396b-419e-b8ff-b520e3d130f7",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "UsageOperation",
+                          "header": "UsageOperation",
+                          "id": "95a7eb7d-c578-4f94-a323-f79105371d6f",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "UsageOperationUpdateTime",
+                          "header": "UsageOperationUpdateTime",
+                          "id": "7cf29068-ace9-426f-aa36-2276161bd21f",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "VirtualizationType",
+                          "header": "VirtualizationType",
+                          "id": "1844fd3a-2c7b-475d-840c-fcb4a1d5f1cc",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "VpcId",
+                          "header": "VpcId",
+                          "id": "f3dcf579-e7a6-447a-b2e5-433f9313cf2a",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "PublicIpAddress",
+                          "header": "PublicIpAddress",
+                          "id": "19f25fed-c2d4-49fc-80ed-c58a64fd0a32",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "IamInstanceProfile",
+                          "header": "IamInstanceProfile",
+                          "id": "9b5d0497-0163-46e3-81e3-407b4ca9b398",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "StateReason",
+                          "header": "StateReason",
+                          "id": "e1abe7c6-9e68-4885-802b-046dfd6f6909",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "Platform",
+                          "header": "Platform",
+                          "id": "89c1130f-1e87-4f42-ac06-f4fe6acc7574",
+                          "isDeleted": true,
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "BootMode",
+                          "header": "BootMode",
+                          "id": "3a652251-4995-409e-b509-7dac274c61ef",
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "KernelId",
+                          "header": "KernelId",
+                          "id": "1637e3fe-c9e8-4de5-81a3-73174ad63925",
+                          "isDeleted": true,
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "Ipv6Address",
+                          "header": "Ipv6Address",
+                          "id": "4230a300-dcf6-4c91-92fe-45af53a36ba6",
+                          "isDeleted": true,
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "TpmSupport",
+                          "header": "TpmSupport",
+                          "id": "0ee6108c-65dd-438a-b99b-6371f235ef74",
+                          "isDeleted": true,
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "InstanceLifecycle",
+                          "header": "InstanceLifecycle",
+                          "id": "3707f6cc-4bd5-499f-8586-9b6e7ccb45b8",
+                          "isDeleted": true,
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "SpotInstanceRequestId",
+                          "header": "SpotInstanceRequestId",
+                          "id": "779b2297-4103-427b-9dc3-367efd8811d0",
+                          "isDeleted": true,
+                          "isHidden": true
+                        },
+                        {
+                          "dataPath": "CurrentInstanceBootMode",
+                          "header": "CurrentInstanceBootMode",
+                          "id": "642cd1d6-e4b1-4a8a-8ed8-a85ee48ee213",
+                          "isHidden": false
+                        }
+                      ],
+                      "data": "${listInstances?.outputs?.instances}",
+                      "isLoading": "${listInstances.isLoading}",
+                      "isScrollable": "vertical",
+                      "isVisible": "true",
+                      "isWrappable": false,
+                      "pageSize": "10",
+                      "paginationType": "client_side",
+                      "rowButtons": [
+                        {
+                          "events": [
+                            {
+                              "name": "click",
+                              "queryName": "startInstance",
+                              "type": "triggerQuery"
+                            }
+                          ],
+                          "name": "button0",
+                          "properties": {
+                            "integrationIcon": "none",
+                            "isBorderless": false,
+                            "isDisabled": false,
+                            "isPrimary": true,
+                            "isVisible": true,
+                            "label": "Start",
+                            "level": "default"
+                          },
+                          "type": "button"
+                        },
+                        {
+                          "events": [
+                            {
+                              "name": "click",
+                              "queryName": "stopInstance",
+                              "type": "triggerQuery"
+                            }
+                          ],
+                          "name": "button1",
+                          "properties": {
+                            "isBorderless": false,
+                            "isDisabled": false,
+                            "isPrimary": true,
+                            "isVisible": true,
+                            "label": "Stop",
+                            "level": "danger"
+                          },
+                          "type": "button"
+                        },
+                        {
+                          "events": [
+                            {
+                              "name": "click",
+                              "queryName": "rebootInstance",
+                              "type": "triggerQuery"
+                            }
+                          ],
+                          "name": "button2",
+                          "properties": {
+                            "isBorderless": false,
+                            "isDisabled": false,
+                            "isPrimary": false,
+                            "isVisible": true,
+                            "label": "Reboot"
+                          },
+                          "type": "button"
+                        }
+                      ],
+                      "summary": "false"
+                    },
+                    "type": "table"
+                  }
+                ],
+                "isVisible": "true",
+                "layout": {
+                  "default": {
+                    "height": 63,
+                    "width": 10,
+                    "x": 1,
+                    "y": 25
+                  }
+                }
+              },
+              "type": "gridCell"
+            },
+            {
+              "events": [],
+              "name": "gridCell1",
+              "properties": {
+                "children": [
+                  {
+                    "events": [],
+                    "name": "name",
+                    "properties": {
+                      "defaultValue": "",
+                      "hasShadow": "true",
+                      "isLoading": "false",
+                      "isVisible": "true",
+                      "placeholder": "Search by name",
+                      "showSubmitButton": "true",
+                      "size": "md"
+                    },
+                    "type": "search"
+                  }
+                ],
+                "isVisible": "true",
+                "layout": {
+                  "default": {
+                    "height": 6,
+                    "width": 5,
+                    "x": 1,
+                    "y": 18
+                  }
+                }
+              },
+              "type": "gridCell"
+            },
+            {
+              "events": [],
+              "name": "gridCell2",
+              "properties": {
+                "children": [
+                  {
+                    "events": [],
+                    "name": "text0",
+                    "properties": {
+                      "content": " # EC2 Management Console",
+                      "contentType": "markdown",
+                      "isVisible": "true",
+                      "textAlign": "left",
+                      "verticalAlign": "bottom"
+                    },
+                    "type": "text"
+                  }
+                ],
+                "isVisible": "true",
+                "layout": {
+                  "default": {
+                    "height": 5,
+                    "width": 3,
+                    "x": 2,
+                    "y": 7
+                  }
+                }
+              },
+              "type": "gridCell"
+            },
+            {
+              "events": [],
+              "name": "gridCell4",
+              "properties": {
+                "children": [
+                  {
+                    "events": [],
+                    "name": "instanceType",
+                    "properties": {
+                      "defaultValue": "All Instance Types",
+                      "isDisabled": "${listInstances.isLoading}",
+                      "isMultiselect": "false",
+                      "isVisible": "true",
+                      "label": "",
+                      "options": "${['All Instance Types', ...new Set(listInstances.rawOutputs?.instances?.map(i => i.InstanceType))]}"
+                    },
+                    "type": "select"
+                  }
+                ],
+                "isVisible": "true",
+                "layout": {
+                  "default": {
+                    "height": 4,
+                    "width": 2,
+                    "x": 6,
+                    "y": 18
+                  }
+                }
+              },
+              "type": "gridCell"
+            },
+            {
+              "events": [],
+              "name": "gridCell4_copy",
+              "properties": {
+                "children": [
+                  {
+                    "events": [],
+                    "name": "state",
+                    "properties": {
+                      "defaultValue": "All States",
+                      "isDisabled": "${listInstances.isLoading}",
+                      "isMultiselect": "false",
+                      "isVisible": "true",
+                      "label": "",
+                      "options": "${['All States', ...new Set(listInstances.rawOutputs?.instances?.map(i => i.State.Name))]}"
+                    },
+                    "type": "select"
+                  }
+                ],
+                "isVisible": "true",
+                "layout": {
+                  "default": {
+                    "height": 4,
+                    "width": 2,
+                    "x": 8,
+                    "y": 18
+                  }
+                }
+              },
+              "type": "gridCell"
+            },
+            {
+              "events": [],
+              "name": "gridCell5",
+              "properties": {
+                "children": [
+                  {
+                    "events": [],
+                    "name": "calloutValue0",
+                    "properties": {
+                      "isDisabled": "false",
+                      "isLoading": "${listInstances.isLoading}",
+                      "isVisible": "true",
+                      "label": "Total",
+                      "size": "sm",
+                      "style": "green",
+                      "unit": "instances",
+                      "value": "${listInstances.outputs?.instances?.length}"
+                    },
+                    "type": "calloutValue"
+                  }
+                ],
+                "isVisible": "true",
+                "layout": {
+                  "default": {
+                    "height": 10,
+                    "width": 3,
+                    "x": 8,
+                    "y": 8
+                  }
+                }
+              },
+              "type": "gridCell"
+            },
+            {
+              "events": [],
+              "name": "gridCell7",
+              "properties": {
+                "children": [
+                  {
+                    "events": [
+                      {
+                        "name": "click",
+                        "queryName": "listInstances",
+                        "type": "triggerQuery"
+                      }
+                    ],
+                    "name": "button3",
+                    "properties": {
+                      "isBorderless": false,
+                      "isDisabled": "false",
+                      "isLoading": "false",
+                      "isPrimary": true,
+                      "isVisible": "true",
+                      "label": "Refresh",
+                      "level": "default"
+                    },
+                    "type": "button"
+                  }
+                ],
+                "isVisible": "true",
+                "layout": {
+                  "default": {
+                    "height": 4,
+                    "width": 1,
+                    "x": 10,
+                    "y": 18
+                  }
+                }
+              },
+              "type": "gridCell"
+            },
+            {
+              "events": [],
+              "name": "gridCell8",
+              "properties": {
+                "children": [
+                  {
+                    "events": [],
+                    "name": "text3",
+                    "properties": {
+                      "content": "Start, stop or reboot your AWS EC2 instances",
+                      "contentType": "markdown",
+                      "isVisible": "true",
+                      "textAlign": "left",
+                      "verticalAlign": "top"
+                    },
+                    "type": "text"
+                  }
+                ],
+                "isVisible": "true",
+                "layout": {
+                  "default": {
+                    "height": 3,
+                    "width": 4,
+                    "x": 2,
+                    "y": 12
+                  }
+                }
+              },
+              "type": "gridCell"
+            },
+            {
+              "events": [],
+              "name": "gridCell3",
+              "properties": {
+                "children": [
+                  {
+                    "events": [],
+                    "name": "integrationLogo0",
+                    "properties": {
+                      "horizontalAlign": "center",
+                      "integrationId": "amazon-ec2",
+                      "isLoading": false,
+                      "isVisible": true,
+                      "verticalAlign": "center"
+                    },
+                    "type": "integrationLogo"
+                  }
+                ],
+                "isVisible": "true",
+                "layout": {
+                  "default": {
+                    "height": 11,
+                    "width": 1,
+                    "x": 1,
+                    "y": 7
+                  }
+                }
+              },
+              "type": "gridCell"
+            }
+          ]
+        },
+        "type": "grid"
+      }
+    ],
+    "description": "Start, stop or reboot your AWS EC2 instances",
+    "favorite": false,
+    "name": "EC2 Management Console",
+    "rootInstanceName": "grid0",
+    "selfService": false,
+    "tags": [
+      "aws"
+    ],
+    "connections": [
+      {
+        "id": "2a8a6d56-4c60-4772-9f1e-69bafed9f0ae",
+        "name": "DatadogAWSConnection-1071"
+      }
+    ],
+    "runAsUserUuid": "52d81077-e1a9-11ee-8b5a-ce9410b1f7ca"
+  }

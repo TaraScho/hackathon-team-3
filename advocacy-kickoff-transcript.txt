@@ -1,0 +1,116 @@
+Cool.
+Alrighty, folks. Well, appreciate everybody joining here for the first Advocacy AI Hackathon kickoff. I know we, kind of brought this about relatively quickly, so appreciate, folks may not have been anticipating this about a week or so ago.
+But really excited to… to dive into this and kind of explain what it is that we're trying to do, why we're trying to do it, and how we're gonna do it. So…
+We all should hopefully see a slide deck here.
+So what it is, I know we mentioned in Slack a little bit about what we're trying to do here, but this is a time-bound hackathon.
+And the goal for the hackathon, like, why we're trying to do this, is we really want to make sure that everybody on the team has, exposure, experience, and some level of confidence with the variety of AI tools that we have at our disposal here in Datadog.
+Best way to do that is to use them. A fun way to use those is to experiment, is to learn, and to do that collaboratively.
+What we saw at CKO in the subsequent week or so afterwards is a lot of just really strong sparks, a lot of ideas, a lot of folks were starting to either share what they had been working with leading up to CKO,
+Different tips, different tricks, different tools, different opinions, different workflows.
+starting to incorporate those, starting to experiment, and then conversely, share those back out with either the advocacy team, the broader community team, etc. So, there's a lot of momentum, there's a lot of excitement, kind of, around those different tools. So you might ask, like.
+If we're already kind of doing that, why… why are we gonna drop everything colloquially that we're doing into a hackathon, like, right now, right now?
+And that's… it's kind of multifaceted. You know, I definitely… I'll say I appreciate that, you know, the challenge came to us, which was, we would like to do an AI hackathon. When can we do it? You know, looking at the calendar, there is no great time.
+And the closer we get to Dash, there is definitely no good time. So, right now is good, but that does also kind of align with our fearless leader. You know.
+This is a company-wide initiative. We, as a product organization, you know, we have come to the conclusion that we need to go faster. You know, we need to invest in these things in earnest, and we now have the conviction and the belief, organizationally, that
+This is a direction that will accelerate our growth and our knowledge in a meaningful way. And so.
+Across all of product engineering.
+we're gonna make the investment, and Q1 really is this time, for us to ensure that everybody has that exposure. Q2 is where we're gonna start doing more organizational building, you know, within the product team. Q3 and Q4 is when we're starting to ship stuff. So, you know, we've got… we've got a year, you know, kind of…
+laid out in front of us, to really take maximum advantage of this and be really thoughtful about how we approach these things. And we, you know, from the top down, if you read ALQ's blog and some of the questions, we know that there's gonna be a bit of a J-curve here in terms of productivity and efficiency.
+Like, this is gonna slow us down in some ways, we're gonna have to make trade-offs, in some of our commitments to make space. We know that
+But now is definitely the time.
+And, you know, I stole this slide from Jeremy from CKO, because I think we as individuals have this really interesting position, and this really great opportunity in front of us. There are…
+n number of things happening in the AI space, and it is genuinely impossible for any one individual.
+to keep track of all of these advancements. Datadog also provides us
+almost an unlimited amount of tools that we can use and experiment. We've got tons of data, tons of platform. We have, as a tech company, an unfair advantage relative to pretty much anybody you're going to speak to out in the wild.
+You know, if you go and talk to your enterprise software engineer, you know, they might be happy that they have Copilot and 3 hours a month to figure out how to use it. But they still have to figure out how to navigate these things.
+So, you know, what I love about what I've been able to see here within Datadog, within the community team, is that all of these different folks are using these different tools, coming up with these different experiments, sharing that collaboratively, and we collectively are able to learn and navigate the space much easier than we would otherwise.
+And I think at the end of the day, that's going to allow us as advocates to help our communities navigate their spaces and their challenges and their domains in a much more meaningful way than we would have otherwise.
+So, what we're asking of all of you, and what we're gonna hold ourselves accountable for on the management side, is around 20 hours of hacking over the next 2 weeks.
+Teams, everybody is asynchronous, in different time zones and all of these things. We would like to try to see if folks can find about 4 hours to work collaboratively together.
+Turns out we've got an hour blocked off today, so that's gonna give you a good chunk of that nice head start there. But proposing that we're gonna move her
+one-on-ones to asynchronous, if there are some standing meetings that we can either focus as checkpoints for the hackathon, or move those to async. Going to do so.
+If folks do want to keep that face time, also totally fine. Don't want to, you know, decelerate anything that folks are working on, you know, from their performance review work, work that's in flight, all those good things, but gonna carve out as much time as possible, from, you know, kind of the traditional,
+meetings and things like that as possible. And then on the management side as well, we want to make sure we eliminate any of the roadblocks you run into. If you're trying to get access to a tool, you can't get access to it, raise the flag, let's get it fixed right away.
+As well as, you know, setting expectations with stakeholders, but also asking the same of you all. Obviously, kind of dropping it on your lap.
+If there are things that you are working on, with different stakeholders.
+Be a little, you know, be… over-communicate, let, you know, let folks know that we are trying to do this, see if we can move some things around. Try to make as much time and space for this as possible, knowing that there will be trade-offs.
+So, kind of in practice.
+Hopefully you can do this kind of in, like, one to two synchronous sessions. You know, that you're not necessarily trying to block off an inordinate amount of time on your calendars, you know, with four or so folks together. Async work in between.
+Organizationally, we are not great at async work, so hopefully, you know, we're able to, use this also as a function to get a little bit better at that. I buried it somewhere, I think, in a further slide, but gonna recommend folks create dedicated Slack channels, you know, to communicate for that, so that we can make that a little bit easier.
+And then, you know, around next week, around this time next week, be able to have a kind of an idea is what it, you know, what is your building, and how things have been going, so that you can kind of pivot, as well as, you know, what we're doing with the Daydog slide. I probably should move this one slide later, because the design principles here are kind of…
+the… the guiding light for this hackathon here. So…
+This is about learning. That's the priority. So, learning things throughout the process is more important than the artifact that you ship. I can't overstate that.
+And so, if, you know, if, you know, you watch, Chopped, you know, early on, you know, you see somebody who's done, and there's still time on the clock, that's probably concerning.
+Explore the boundaries. If you get an artifact and you're feeling pretty good about it, and you still feel like you have time, keep going. Like, we really want to be learning here.
+And use AI meaningfully. Don't just kind of shoehorn it in, make it part of the workflow. Again, this is about learning and adopting the AI tools, not necessarily building a thing.
+And then, you know, novel ideas are cool. Like, if we're using something, you know, like AI, can we do something in a way that we've never been able to do so before?
+You know, try to think out of the box. You'll see that failure modes are valuable outcomes, like, that's genuinely how we learn. We don't necessarily learn by succeeding, we're going to learn by the failures, we're gonna learn by the friction, and that's, again, gonna help us be
+Much more authentic when we speak with other folks who are trying to do the same thing.
+And we definitely want to be dogfooding by default.
+Similarly there, we're gonna learn things about our own product by using it, by trying to dog food it, and that's going to help us advocate for our customers within our own product organization.
+So, if it's not about…
+what you ship, what should you build? So, I shared this in Slack, I think, on Friday, a few different, kind of, ideas or directions that you can go through. We definitely want this to be somewhat tangentially related to the work that we do.
+Luckily, the work we do is pretty expansive, so there's lots of different things. So, you know, things that can help you amplify your work, create content. I know we've got some examples of that previously, and we're gonna see another example of that here shortly.
+Looking at AI-powered demos, I know we have the demo org, I know we have things like Stickerlandia, but are you actually able to highlight and build some really cool demos, you know, using Agentech AI?
+Maybe. You know, and I think the rest are fairly self-explanatory here, so I don't want to harp on those too much, steal too much of the time, but again, try to keep things rooted, somewhat related to the work that we're doing in the team.
+And I'm gonna have Kunal share a quick example of something that he did over a weekend, I think two weekends ago.
+Kunal Batra
+Kunal Batra
+10:14
+Sounds good, let me share my screen.
+Rick Sherman
+Rick Sherman
+10:16
+Perfect.
+Kunal Batra
+Kunal Batra
+10:18
+Alright, just sent you the request, Rick.
+Rick Sherman
+Rick Sherman
+10:21
+There you go.
+Can he stop sharing from my side, or did it already take it over?
+
+Thank you, Kunal. So, there's an example, you know, solving some of the problems that we have within advocacy. As you might have solved, there's some visual artifacts there. I think it would be fair to say that it is not
+complete. It's not, you know, a fully featured thing, but very much, you know, indicative of the types of things that we can do in relatively quick order, with our generative AI tools.
+So, similarly, you know, how we're gonna build the hackathon here, use at least two of the AI tools that we have at our disposal here at Datadog.
+Kanal mentioned, Claude Code, great coding agent, but, you know, we also have Cursor, we also have Codex, we've got OpenAI, we've got a ton of, MCPs, skills.
+random Go libraries. The list is pretty expansive. I've got a quick list of resources I'll share with you after this. Would love to continue to build out that knowledge base as we uncover things.
+Literally, pretty much every day, someone is sharing some new tool that we have that we haven't heard of, so…
+Let's try to kind of crowdsource all of that. Shared a bit of example flow there. So, again, at least two AI tools, if you do everything with AI, you know, as long as that makes sense. Would love to hear the journey that you went through there. Datadog.
+by default here. So, everything we're using, we want to be dogfooding, we want to be really good at using our product.
+But, if it doesn't fit, there's a story there as well. So, we'd love to know why Datadog doesn't fit in a particular thing, and that's gonna help us understand, does Datadog
+need to cover this thing? Are there adjacencies that generally just don't make sense for Datadog, and what does that mean? These are the same kind of questions that our folks, you know, out in the community will be trying to answer and solve, as well as helping our own product organization move more quickly and with purpose.
+So, recommend that the folks within the teams just use a central Datadog account for that. Everyone collaborates on the one.
+So, call to action here, if you don't have multi-org on your dog food account, and if you don't know what multi-org is, that's a feature flag that allows you to create child orgs against your own dog food, so that you can logically separate things and have
+distinct Datadog accounts for them. Also great if you're working with partners as well, because you can kind of share that and cross-collab. It all folds up into there. So if you don't have that feature flag, good time to get that flipped on so you can have that ability. And if you don't have a dog food account for any reason, raise the flag as well. Let's get you set up. Definitely now is the time for that.
+As mentioned, we'll drop these links in Slack. A lot of different resources that we have at our disposal across Confluence.
+Also, there is a learning week going on within the company, pretty expansive set of resources that are technical, cultural, everywhere kind of in between, as well as the Coding with Agents initiative that's going on. If you have some questions there, Ryan McLean can help get you up to speed there.
+So, going to drop this in. This list is by no way exhaustive. Let's crowdsource it, let's keep building it out so that we can get all this information and probably ultimately store it in Confluence long-term.
+So what are we gonna do here at the end? We will do some final presentations. That is already on the calendar. I think it has been sent out as a meeting invite. March 4th, goal here is 10 minutes per team. You know, if you sneak maybe 12, we won't run out of time, but beyond that, we will. So there's a lot of folks here.
+But, tangentially here, or concretely here, what I want to actually have to say is, you know, what were the problem that you were curious? What did you try to explore, with this exercise? A little bit of a live demo, showing whatever it is that you were able to get to.
+And then, really, again, what this is about learning, so what did you learn? What did you learn throughout the process? Were you optimistic and…
+One way? Were you hesitant in another way? Did AI work exceptionally well for you? Was it a terrible experience? And then maybe it was a different experience at the end. And then the very bottom here is, what will you do next, right?
+This is about learning, it's about enablement. Now that you have this knowledge, you've started going down this path.
+Where do you think you're gonna go next? Again, this is about a year of learning and experimentation. This is not a one-and-done kind of situation.
+There will be some other incentives here. We are trying to work on some prizes. Jacob and I have been… have been working on this.
+Finding things that are very exciting, that are also able to be shipped around the world, in the timeframe that we put this together is… is a bit of a challenge, but we are working on it. Can't quite reveal what the things are as of yet, but should have some fun prizes for y'all.
+hopefully figure it out by March 4th, so we can at least, let you know how we can sort out getting to you, wherever you are maybe in the world.
+So, what everyone has been waiting for, the teams. So, made a very conscious effort to try to mix folks based on time zone, you know, to make sure that we are able to work together as much as possible.
+As well as mixing in, kind of, known AI experience, maybe some known AI hesitation, to try to make sure that teams are really balanced. So if you have been building things with AI, and you feel like you're an absolute expert.
+And there are folks in your team that are not. This is your chance to be a mentor, help bring everybody along.
+You know, we definitely want everybody to participate in a meaningful way.
+Group projects sometimes are tricky in that sense, so do please make a concerted effort to work together, to come to these outcomes.
+So, first set of teams.
+Again, names and faces, I can drop, you know, this into the back room as well, concretely. And what we're also going to do, as soon as I'm done with the kickoff here, is we are going to drop into breakout rooms. They've already been pre-set up, so everybody should drop into the breakout room with your team.
+You'll have an opportunity to start brainstorming, and, negotiating schedules.
+Next set of teams.
+And actually, I will say, you know, mention, I forgot to mention that David on the previous slide starts next week, so David's first week at Datadog is Monday. We will incorporate David into the hackathon to the best of our ability. David is the new community advocate, joining on Brandon's team. Was it CKO, if you got a chance to meet him for those first couple days.
+And then, the last team?
+We're also getting some managers together and putting a team together. You know, we also need to be learning and working with the AI tools. We are also going to commit ourselves to finding the time to work here. If you have seen, I'll say at least my calendar or Jacob's calendar, you will know that
+finding another 20 hours is not going to be easy, but we are hell-bent on doing it. And so, you know, we… we are joining you in this journey. This is not something we're asking you to do that we are not willing to do ourselves. So, we will not be eligible to win any prizes, though, so…
+No, no worries there.
+Cool! So I've talked for about 20 minutes.
+I'm gonna open up for questions before we hop over to the breakout rooms.
+And I've not been paying attention to chat, it looked lively, so if you have a question, I'm not going to read chat. You're gonna need to come off mute and ask me live.

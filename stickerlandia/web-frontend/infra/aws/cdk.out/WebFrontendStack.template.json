@@ -1,0 +1,306 @@
+{
+ "Parameters": {
+  "SsmParameterValuestickerlandiadevsharedwebfrontendbucketC96584B6F00A464EAD1953AFF4B05118Parameter": {
+   "Type": "AWS::SSM::Parameter::Value<String>",
+   "Default": "/stickerlandia/dev/shared/web-frontend-bucket"
+  },
+  "SsmParameterValuestickerlandiadevsharedcloudfrontidC96584B6F00A464EAD1953AFF4B05118Parameter": {
+   "Type": "AWS::SSM::Parameter::Value<String>",
+   "Default": "/stickerlandia/dev/shared/cloudfront-id"
+  },
+  "BootstrapVersion": {
+   "Type": "AWS::SSM::Parameter::Value<String>",
+   "Default": "/cdk-bootstrap/hnb659fds/version",
+   "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]"
+  }
+ },
+ "Resources": {
+  "DeployWebFrontendAwsCliLayer7DBF8F72": {
+   "Type": "AWS::Lambda::LayerVersion",
+   "Properties": {
+    "Content": {
+     "S3Bucket": "cdk-hnb659fds-assets-652026215310-us-west-2",
+     "S3Key": "c49d356cac773d491c5f7ac148995a1181498a8e289429f8612a7f7e3814f535.zip"
+    },
+    "Description": "/opt/awscli/aws"
+   },
+   "Metadata": {
+    "aws:cdk:path": "WebFrontendStack/DeployWebFrontend/AwsCliLayer/Resource",
+    "aws:asset:path": "asset.c49d356cac773d491c5f7ac148995a1181498a8e289429f8612a7f7e3814f535.zip",
+    "aws:asset:is-bundled": false,
+    "aws:asset:property": "Content"
+   }
+  },
+  "DeployWebFrontendCustomResource6A62BEB7": {
+   "Type": "Custom::CDKBucketDeployment",
+   "Properties": {
+    "ServiceToken": {
+     "Fn::GetAtt": [
+      "CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C81C01536",
+      "Arn"
+     ]
+    },
+    "SourceBucketNames": [
+     "cdk-hnb659fds-assets-652026215310-us-west-2"
+    ],
+    "SourceObjectKeys": [
+     "5a63f8d0049daf9250005968288421253039aeb5afc84ac8b2b6e6c5addaf80c.zip"
+    ],
+    "DestinationBucketName": {
+     "Ref": "SsmParameterValuestickerlandiadevsharedwebfrontendbucketC96584B6F00A464EAD1953AFF4B05118Parameter"
+    },
+    "WaitForDistributionInvalidation": true,
+    "Prune": true,
+    "DistributionId": {
+     "Ref": "SsmParameterValuestickerlandiadevsharedcloudfrontidC96584B6F00A464EAD1953AFF4B05118Parameter"
+    },
+    "DistributionPaths": [
+     "/*"
+    ],
+    "OutputObjectKeys": true
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "WebFrontendStack/DeployWebFrontend/CustomResource/Default"
+   }
+  },
+  "CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRole89A01265": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+       ]
+      ]
+     }
+    ],
+    "Tags": [
+     {
+      "Key": "env",
+      "Value": "dev"
+     },
+     {
+      "Key": "project",
+      "Value": "stickerlandia"
+     },
+     {
+      "Key": "service",
+      "Value": "web-frontend"
+     },
+     {
+      "Key": "team",
+      "Value": "advocacy"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "WebFrontendStack/Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C/ServiceRole/Resource"
+   }
+  },
+  "CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRoleDefaultPolicy88902FDF": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": [
+        "s3:GetBucket*",
+        "s3:GetObject*",
+        "s3:List*"
+       ],
+       "Effect": "Allow",
+       "Resource": [
+        "arn:aws:s3:::cdk-hnb659fds-assets-652026215310-us-west-2",
+        "arn:aws:s3:::cdk-hnb659fds-assets-652026215310-us-west-2/*"
+       ]
+      },
+      {
+       "Action": [
+        "s3:Abort*",
+        "s3:DeleteObject*",
+        "s3:GetBucket*",
+        "s3:GetObject*",
+        "s3:List*",
+        "s3:PutObject",
+        "s3:PutObjectLegalHold",
+        "s3:PutObjectRetention",
+        "s3:PutObjectTagging",
+        "s3:PutObjectVersionTagging"
+       ],
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::Join": [
+          "",
+          [
+           "arn:aws:s3:::",
+           {
+            "Ref": "SsmParameterValuestickerlandiadevsharedwebfrontendbucketC96584B6F00A464EAD1953AFF4B05118Parameter"
+           },
+           "/*"
+          ]
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           "arn:aws:s3:::",
+           {
+            "Ref": "SsmParameterValuestickerlandiadevsharedwebfrontendbucketC96584B6F00A464EAD1953AFF4B05118Parameter"
+           }
+          ]
+         ]
+        }
+       ]
+      },
+      {
+       "Action": [
+        "cloudfront:CreateInvalidation",
+        "cloudfront:GetInvalidation"
+       ],
+       "Effect": "Allow",
+       "Resource": "*"
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRoleDefaultPolicy88902FDF",
+    "Roles": [
+     {
+      "Ref": "CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRole89A01265"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "WebFrontendStack/Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C/ServiceRole/DefaultPolicy/Resource"
+   }
+  },
+  "CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C81C01536": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-652026215310-us-west-2",
+     "S3Key": "3423a042b818e31c1e34a19d6689ab2e5f9b70fcbe9e71df66f241b20a200bd9.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "AWS_CA_BUNDLE": "/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem"
+     }
+    },
+    "Handler": "index.handler",
+    "Layers": [
+     {
+      "Ref": "DeployWebFrontendAwsCliLayer7DBF8F72"
+     }
+    ],
+    "Role": {
+     "Fn::GetAtt": [
+      "CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRole89A01265",
+      "Arn"
+     ]
+    },
+    "Runtime": "python3.13",
+    "Tags": [
+     {
+      "Key": "env",
+      "Value": "dev"
+     },
+     {
+      "Key": "project",
+      "Value": "stickerlandia"
+     },
+     {
+      "Key": "service",
+      "Value": "web-frontend"
+     },
+     {
+      "Key": "team",
+      "Value": "advocacy"
+     }
+    ],
+    "Timeout": 900
+   },
+   "DependsOn": [
+    "CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRoleDefaultPolicy88902FDF",
+    "CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRole89A01265"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "WebFrontendStack/Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C/Resource",
+    "aws:asset:path": "asset.3423a042b818e31c1e34a19d6689ab2e5f9b70fcbe9e71df66f241b20a200bd9",
+    "aws:asset:is-bundled": false,
+    "aws:asset:property": "Code"
+   }
+  },
+  "CDKMetadata": {
+   "Type": "AWS::CDK::Metadata",
+   "Properties": {
+    "Analytics": "v2:deflate64:H4sIAAAAAAAA/9VUyW7bMBD9lvAY0Gyj3HxznLYokKKGFfRiGMaYHMuMuQhcbKiC/r2gJDp2l7TXnki+N5x587gUrCju2N0NnPyEi8NEyS1rywD8QOc7swAHGgM6ukRvo+O4IrdkTeHkN62/Zw+RHzA8gMfVmvr7TSuwVrbRaMLIPZ4BCt5j8GyWho4q0FsBrJ3vzBM06L6h89IaWkpTKQzWfIyGB2nNqiUxSkGm5JZQolKsJ9NBB0FzlM6alP8ckPIuoqutxxELUqONOcJZlQmN2rqmlN8zgPUeNTpQZbAOKrygjjV/nZVxazD4EdhJhb7xAXUWYatPzsZ6XHIrcpY9GKHQZSnRJG39qqMtASG+YAABAYYWaXAR17+nkgPdml749Fdz/icjPlyqf214IJ8uO+3W6a5mHzoqQbN2aRWuWgLeR43ioSHTltROGi5rUDPObTy7MsSkDbM+w6iCaDBQoVhYJbnEVK29wpqZG2OzrGe7yCWGiLRnZEMAvv9slDR45s4dvUm+nffPbG9LaosOcG9iLvZsl/3x/6ThV1iIMkDAdA7+quy/wr2MQUGX3/2mv6obOHmuJJud/FzJ/kzTDtp/EWWASpqKzqMPVl//P6mvEUjzrzHUMXTUWIHsxb87FgUrCvb+5sVLORnvFlsO4w91wx0D8gQAAA=="
+   },
+   "Metadata": {
+    "aws:cdk:path": "WebFrontendStack/CDKMetadata/Default"
+   }
+  }
+ },
+ "Outputs": {
+  "BucketName": {
+   "Description": "S3 bucket where frontend assets are deployed",
+   "Value": {
+    "Ref": "SsmParameterValuestickerlandiadevsharedwebfrontendbucketC96584B6F00A464EAD1953AFF4B05118Parameter"
+   }
+  },
+  "DistributionId": {
+   "Description": "CloudFront distribution ID",
+   "Value": {
+    "Ref": "SsmParameterValuestickerlandiadevsharedcloudfrontidC96584B6F00A464EAD1953AFF4B05118Parameter"
+   }
+  }
+ },
+ "Rules": {
+  "CheckBootstrapVersion": {
+   "Assertions": [
+    {
+     "Assert": {
+      "Fn::Not": [
+       {
+        "Fn::Contains": [
+         [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+         ],
+         {
+          "Ref": "BootstrapVersion"
+         }
+        ]
+       }
+      ]
+     },
+     "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI."
+    }
+   ]
+  }
+ }
+}

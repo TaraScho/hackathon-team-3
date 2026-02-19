@@ -1,0 +1,148 @@
+/*
+ * Unless explicitly stated otherwise all files in this repository are licensed under the Apache License Version 2.0.
+ * This product includes software developed at Datadog (https://www.datadoghq.com/).
+ * Copyright 2025-Present Datadog, Inc.
+ */
+
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025 Datadog, Inc.
+
+using System.Globalization;
+using Microsoft.Extensions.DependencyInjection;
+using OpenIddict.Abstractions;
+using OpenIddict.Server;
+
+namespace Stickerlandia.UserManagement.Auth;
+
+public static class AuthServiceExtensions
+{
+    public static IServiceCollection AddCoreAuthentication(this IServiceCollection services,
+        Action<OpenIddictCoreBuilder> configuration, bool disableSsl)
+    {
+        services.AddOpenIddict()
+            .AddCore(configuration)
+            .AddServer(options =>
+            {
+                // Read explicit issuer from environment variable
+                var explicitIssuer = Environment.GetEnvironmentVariable("OPENIDDICT_ISSUER");
+                if (!string.IsNullOrEmpty(explicitIssuer))
+                {
+                    // Trim trailing slash to ensure consistent issuer format across services
+                    var issuerUrl = explicitIssuer.TrimEnd('/');
+                    options.SetIssuer(new Uri(issuerUrl, UriKind.Absolute));
+                }
+                
+                // Enable the token endpoint.
+                // Enable the authorization, logout, token and userinfo endpoints.
+                options.SetAuthorizationEndpointUris("api/users/v1/connect/authorize")
+                    .SetEndSessionEndpointUris("api/users/v1/connect/logout")
+                    .SetTokenEndpointUris("api/users/v1/connect/token")
+                    .SetUserInfoEndpointUris("api/users/v1/connect/userinfo") ;
+
+                // Mark the "email", "profile" and "roles" scopes as supported scopes.
+                options.RegisterScopes(OpenIddictConstants.Scopes.OpenId, OpenIddictConstants.Scopes.Email, OpenIddictConstants.Scopes.Profile, OpenIddictConstants.Scopes.Roles);
+
+                // Note: the sample uses the code and refresh token flows but you can enable
+                // the other flows if you need to support implicit, password or client credentials.
+                options.AllowAuthorizationCodeFlow()
+                    .RequireProofKeyForCodeExchange()
+                    .AllowRefreshTokenFlow();
+
+                // Register the signing and encryption credentials.
+                options.AddDevelopmentEncryptionCertificate()
+                    .AddDevelopmentSigningCertificate();
+
+                // Disable access token encryption to allow external services to validate tokens.
+                // This makes tokens transparent (signed JWTs) instead of encrypted JWEs.
+                // Required for services like sticker-award and sticker-catalogue that validate
+                // tokens using the JWKS endpoint.
+                options.DisableAccessTokenEncryption();
+
+                // Register the ASP.NET Core host and configure the ASP.NET Core options.
+                if (disableSsl)
+                    options.UseAspNetCore()
+                        .DisableTransportSecurityRequirement()
+                        .EnableAuthorizationEndpointPassthrough()
+                        .EnableEndSessionEndpointPassthrough()
+                        .EnableStatusCodePagesIntegration()
+                        .EnableTokenEndpointPassthrough();
+                else
+                    options.UseAspNetCore()
+                        .EnableAuthorizationEndpointPassthrough()
+                        .EnableEndSessionEndpointPassthrough()
+                        .EnableStatusCodePagesIntegration()
+                        .EnableTokenEndpointPassthrough();
+                
+                options.AddEventHandler<OpenIddictServerEvents.HandleUserInfoRequestContext>(options =>
+                    options.UseInlineHandler(context =>
+                    {
+                        if (context.AccessTokenPrincipal.HasScope(OpenIddictConstants.Scopes.Profile))
+                        {
+                            context.Profile = context.AccessTokenPrincipal.GetClaim(OpenIddictConstants.Claims.Profile);
+                            context.PreferredUsername =
+                                context.AccessTokenPrincipal.GetClaim(OpenIddictConstants.Claims.PreferredUsername);
+
+                            var name = context.AccessTokenPrincipal.GetClaim(OpenIddictConstants.Claims.Name);
+                            if (!string.IsNullOrEmpty(name))
+                            {
+                                context.Claims[OpenIddictConstants.Claims.Name] = name;
+                            }
+
+                            var givenName = context.AccessTokenPrincipal.GetClaim(OpenIddictConstants.Claims.GivenName);
+                            if (!string.IsNullOrEmpty(givenName))
+                            {
+                                context.Claims[OpenIddictConstants.Claims.GivenName] = givenName;
+                            }
+
+                            var familyName = context.AccessTokenPrincipal.GetClaim(OpenIddictConstants.Claims.FamilyName);
+                            if (!string.IsNullOrEmpty(familyName))
+                            {
+                                context.Claims[OpenIddictConstants.Claims.FamilyName] = familyName;
+                            }
+
+                            var signupDate = context.AccessTokenPrincipal.GetClaim("signup_date");
+                            if (!string.IsNullOrEmpty(signupDate))
+                            {
+                                context.Claims["signup_date"] = signupDate;
+                            }
+
+                            var updatedAt = context.AccessTokenPrincipal.GetClaim(OpenIddictConstants.Claims.UpdatedAt);
+                            if (!string.IsNullOrEmpty(updatedAt))
+                            {
+                                context.Claims[OpenIddictConstants.Claims.UpdatedAt] = long.Parse(
+                                    updatedAt,
+                                    NumberStyles.Number, CultureInfo.InvariantCulture);
+                            }
+                        }
+
+                        if (context.AccessTokenPrincipal.HasScope(OpenIddictConstants.Scopes.Email))
+                        {
+                            context.Email = context.AccessTokenPrincipal.GetClaim(OpenIddictConstants.Claims.Email);
+                            context.EmailVerified = false;
+                        }
+
+                        if (context.AccessTokenPrincipal.HasScope(OpenIddictConstants.Scopes.Roles))
+                        {
+                            var roles = context.AccessTokenPrincipal.GetClaims(OpenIddictConstants.Claims.Role);
+                            if (roles.Any())
+                            {
+                                context.Claims[OpenIddictConstants.Claims.Role] =
+                                    System.Text.Json.JsonSerializer.SerializeToElement(roles.ToList());
+                            }
+                        }
+
+                        return default;
+                    }));
+            })
+            .AddValidation(options =>
+            {
+                // Import the configuration from the local OpenIddict server instance.
+                options.UseLocalServer();
+
+                // Register the ASP.NET Core host.
+                options.UseAspNetCore();
+            });
+        return services;
+    }
+}
