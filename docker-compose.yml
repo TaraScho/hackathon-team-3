@@ -116,6 +116,11 @@ services:
       - "3000:80"
     depends_on:
       - backend
+      - datadog-agent
+    labels:
+      com.datadoghq.tags.service: "driftguard-frontend"
+      com.datadoghq.tags.env: "${APP_ENV:-development}"
+      com.datadoghq.tags.version: "0.1.0"
 
 volumes:
   postgres_data:
