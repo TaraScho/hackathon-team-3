@@ -44,8 +44,8 @@ async def list_drift_reports(
 
     Note: This aggregates individual drift reports by repository and scan time.
     """
-    # Join with config resources to filter by repository
-    query = db.query(DriftReport).join(ConfigResource)
+    # Start with base query - use outerjoin to handle empty tables
+    query = db.query(DriftReport).outerjoin(ConfigResource)
 
     # Apply filters
     if repository_id is not None:

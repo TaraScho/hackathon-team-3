@@ -4,14 +4,14 @@ const API_BASE_URL = '/api'
 
 export async function fetchDriftReports(): Promise<DriftReport[]> {
   try {
-    const response = await fetch(`${API_BASE_URL}/drift/reports`)
+    const response = await fetch(`${API_BASE_URL}/drift`)
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
 
     const data = await response.json()
-    return data.reports || []
+    return Array.isArray(data) ? data : (data.reports || [])
   } catch (error) {
     console.error('Error fetching drift reports:', error)
     throw error
