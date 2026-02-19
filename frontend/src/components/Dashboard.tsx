@@ -46,7 +46,10 @@ function Dashboard({ reports, loading, error }: DashboardProps) {
             {reports.map(report => (
               <div key={report.id} className={`report-card ${report.drift_detected ? 'has-drift' : 'no-drift'}`}>
                 <div className="report-header">
-                  <h3>Scan Report</h3>
+                  <div className="report-title-section">
+                    <h3>Scan Report</h3>
+                    <p className="repository-id">Repository: {report.repository_id}</p>
+                  </div>
                   <span className={`status-badge ${report.drift_detected ? 'status-drift' : 'status-clean'}`}>
                     {report.drift_detected ? 'Drift Detected' : 'No Drift'}
                   </span>

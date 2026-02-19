@@ -152,8 +152,25 @@
 .report-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 1.5rem;
+}
+
+.report-title-section {
+  flex: 1;
+}
+
+.report-title-section h3 {
+  margin: 0 0 0.5rem 0 !important;
+}
+
+.repository-id {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.85rem;
+  color: var(--dd-purple);
+  margin: 0;
+  font-weight: 500;
+  word-break: break-all;
 }
 
 .status-badge {
