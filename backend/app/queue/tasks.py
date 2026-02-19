@@ -95,14 +95,14 @@ def run_drift_detection_job(repository_id: UUID) -> dict:
         for resource in resources:
             config_resource = ConfigResource(
                 repository_id=repository.id,
-                resource_type=ResourceType.TERRAFORM,  # For now, only Terraform
-                file_path=str(resource.file_path),
-                resource_name=resource.name,
+                resource_type=resource.resource_type,
+                file_path=str(resource.source_file),
+                resource_name=resource.resource_id,
                 expected_config={
-                    "type": resource.type,
-                    "name": resource.name,
+                    "resource_id": resource.resource_id,
+                    "resource_type": resource.resource_type.value,
                     "properties": resource.properties,
-                    "tags": resource.tags,
+                    "metadata": resource.metadata,
                 }
             )
             db.add(config_resource)

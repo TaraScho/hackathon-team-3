@@ -3,6 +3,7 @@ import shutil
 from pathlib import Path
 from typing import List, Dict, Any
 from app.parsers.terraform import TerraformParser
+from app.parsers.kubernetes import KubernetesParser
 
 
 class GitIngestionService:
@@ -25,6 +26,7 @@ class GitIngestionService:
         self.workspace_dir = workspace_dir or Path("./workspace")
         self.workspace_dir.mkdir(parents=True, exist_ok=True)
         self.terraform_parser = TerraformParser()
+        self.kubernetes_parser = KubernetesParser()
 
     def clone_repository(self, repo_url: str, branch: str = None) -> Path:
         """
@@ -75,14 +77,10 @@ class GitIngestionService:
         for pattern in self.CONFIG_PATTERNS['docker']:
             config_files.extend(directory.rglob(pattern))
 
-        # Find Kubernetes files (only in k8s-related directories to avoid false positives)
-        for yaml_file in directory.rglob('*.yaml'):
-            if any(part in yaml_file.parts for part in ['k8s', 'kubernetes', 'kube']):
-                config_files.append(yaml_file)
-
-        for yml_file in directory.rglob('*.yml'):
-            if any(part in yml_file.parts for part in ['k8s', 'kubernetes', 'kube']):
-                config_files.append(yml_file)
+        # Find all Kubernetes YAML files
+        # Check all YAML files, parser will filter by kind
+        for pattern in self.CONFIG_PATTERNS['kubernetes']:
+            config_files.extend(directory.rglob(pattern))
 
         return config_files
 
@@ -108,12 +106,18 @@ class GitIngestionService:
         # Find configuration files
         config_files = self.find_config_files(repo_path)
 
-        # Parse Terraform files
+        # Parse configuration files
         resources = []
         for config_file in config_files:
             if config_file.suffix in ['.tf', '.tfvars']:
                 try:
                     parsed_resources = self.terraform_parser.parse_file(config_file)
+                    resources.extend(parsed_resources)
+                except Exception as e:
+                    print(f"Error parsing Terraform file {config_file}: {e}")
+            elif config_file.suffix in ['.yaml', '.yml']:
+                try:
+                    parsed_resources = self.kubernetes_parser.parse_file(config_file)
                     resources.extend(parsed_resources)
                 except Exception as e:
                     # Log error but continue processing other files
