@@ -47,30 +47,15 @@ python3 -c "import datetime,secrets; print(f'trun-{datetime.datetime.now():%Y%m%
 
 Each app and workflow gets its own dedicated role, connection, and app key (1:1). Short labels come from the `short_label` field in `repo-analysis.json`, which the repo-analyzer skill derives from template/workflow names (see the skill's `short_label` Derivation Rule).
 
-| Resource | Name Pattern |
+| Resource Type | Pattern |
 |---|---|
-| App 1 Role | `DatadogAction-TestApp-{short_label_1}-{run_id}` |
-| App 1 Connection | `TestConn-App-{short_label_1}-{run_id}` |
-| App 1 Key | `TestKey-App-{short_label_1}-{run_id}` |
-| App 1 | `TestApp-{short_label_1}-{run_id}` |
-| App 2 Role | `DatadogAction-TestApp-{short_label_2}-{run_id}` |
-| App 2 Connection | `TestConn-App-{short_label_2}-{run_id}` |
-| App 2 Key | `TestKey-App-{short_label_2}-{run_id}` |
-| App 2 | `TestApp-{short_label_2}-{run_id}` |
-| WF 1 Role | `DatadogAction-TestWF-{short_label_3}-{run_id}` |
-| WF 1 Connection | `TestConn-WF-{short_label_3}-{run_id}` |
-| WF 1 Key | `TestKey-WF-{short_label_3}-{run_id}` |
-| WF 1 | `TestWF-{short_label_3}-{run_id}` |
-| WF 2 Role | `DatadogAction-TestWF-{short_label_4}-{run_id}` |
-| WF 2 Connection | `TestConn-WF-{short_label_4}-{run_id}` |
-| WF 2 Key | `TestKey-WF-{short_label_4}-{run_id}` |
-| WF 2 | `TestWF-{short_label_4}-{run_id}` |
+| Role | `DatadogAction-Test{Type}-{short_label}-{run_id}` |
+| Connection | `TestConn-{Type}-{short_label}-{run_id}` |
+| App/Workflow | `Test{Type}-{short_label}-{run_id}` |
 | Dashboard | `TestDash-{run_id}` |
 | Monitor | `TestMon-CPU-{run_id}` |
-| Teams | (determined by software-catalog skill from repo analysis) |
-| Service entities | (determined by software-catalog skill from repo analysis) |
 
-`{short_label_1}` through `{short_label_4}` are populated from the Phase 2 selection, which reads them from Phase 1's `repo-analysis.json`.
+Where `{Type}` = `App` or `WF`. Each app/workflow gets 1 dedicated role + connection. Short labels come from Phase 2 selection (derived from Phase 1's `repo-analysis.json`). Teams and service entities are determined by the software-catalog skill.
 
 ---
 
@@ -229,8 +214,7 @@ From the Phase 1 `repo-analysis.json`, select exactly:
       "short_label": "<short_label from repo-analysis.json>",
       "app_name": "TestApp-{short_label}-{run_id}",
       "role_name": "DatadogAction-TestApp-{short_label}-{run_id}",
-      "connection_name": "TestConn-App-{short_label}-{run_id}",
-      "app_key_name": "TestKey-App-{short_label}-{run_id}"
+      "connection_name": "TestConn-App-{short_label}-{run_id}"
     }
   ],
   "workflows": [
@@ -239,8 +223,7 @@ From the Phase 1 `repo-analysis.json`, select exactly:
       "short_label": "<short_label from repo-analysis.json>",
       "workflow_name": "TestWF-{short_label}-{run_id}",
       "role_name": "DatadogAction-TestWF-{short_label}-{run_id}",
-      "connection_name": "TestConn-WF-{short_label}-{run_id}",
-      "app_key_name": "TestKey-WF-{short_label}-{run_id}"
+      "connection_name": "TestConn-WF-{short_label}-{run_id}"
     }
   ]
 }
@@ -250,118 +233,63 @@ The `apps` array contains exactly 2 entries and `workflows` contains exactly 2 e
 
 ---
 
-## Phase 3: Build Apps
+## Phases 3 & 4: Build Apps and Workflows
 
-For **each** of the 2 selected apps, generate and execute a Python script that follows the **app-builder skill's full flow**. Each app is a separate script.
+For each of the 2 selected apps and 2 selected workflows, generate and execute a separate Python script. All generated scripts import from the `lib` package (available via PYTHONPATH). Key modules: `lib.datadog_helpers`, `lib.iam_permissions`, `lib.action_connection`, `lib.app_builder`.
 
-### Standard Imports for Generated Scripts
+### Shared Connection Setup Steps (both phases)
 
-All generated scripts should use these canonical imports from the `lib` package (available via `PYTHONPATH`):
+Every app and workflow script starts with the same 7-step connection setup:
 
-```python
-# Core Datadog helpers
-from lib.datadog_helpers import DatadogResponse, build_headers, BASE_URL, DD_SITE
+1. **Extract actions** — `extract_actions_from_app_json()` or `extract_actions_from_workflow_json()` → `resolve_permissions()`
+2. **Create IAM role** — `ensure_iam_role("{role_name}")`
+3. **Scope permissions** — `update_role_permissions()` with exactly the resolved permissions
+4. **Create connection** — `create_aws_action_connection()` named `{connection_name}`
+5. **Retrieve external ID** — `GET /api/v2/connection/custom_connections/{id}` at `data.attributes.data.aws.assumeRole.externalId`
+6. **Update trust policy** — `update_role_trust_policy()` with the external ID
+7. **Verify connection** — `verify_connection_ready()` — poll until ready
 
-# IAM permission resolution
-from lib.iam_permissions import load_action_catalog, extract_actions_from_app_json, extract_actions_from_workflow_json, resolve_permissions, generate_iam_policy_document
+### Phase 3: App-Specific Steps (after connection setup)
 
-# Action connection setup
-from lib.action_connection import ensure_iam_role, update_role_permissions, update_role_trust_policy, create_app_key_with_actions_scope, create_aws_action_connection, verify_connection_ready, setup_datadog_action_connection, set_connection_restriction_policy
+8. **Transform app JSON** — remove `handle`, replace `connectionId` placeholders, wrap in API envelope, rename to `{app_name}`
+9. **Create app** — POST to `/api/v2/app-builder/apps`
+10. **Set restriction policy** — POST to `/api/v2/restriction_policy/app-builder-app:{app_id}`
+11. **Publish** — POST to `/api/v2/app-builder/apps/{app_id}/deployment`
 
-# App builder helpers
-from lib.app_builder import transform_app_json_for_api, create_app_builder_app, set_app_restriction_policy, publish_app, get_org_id, get_existing_apps, remove_fields_recursive
-```
+App key scopes: `apps_run`, `apps_write`, `connections_read`, `connections_resolve`.
 
-### Per-App Script Flow
+Save scripts: `scripts/testing/generated/{run_id}/app_{N}_{short_label}.py`
 
-For each selected app (using its `short_label` from `selection.json`):
+### Phase 4: Workflow-Specific Steps (after connection setup)
 
-1. **Extract actions** — use `iam_permissions.py` to extract actions from the selected app JSON template and resolve IAM permissions
-2. **Create IAM role** — call `ensure_iam_role("{role_name}")` to create a dedicated IAM role
-3. **Scope permissions** — call `update_role_permissions()` to scope the role to exactly the resolved permissions
-4. **Create scoped app key** — named `{app_key_name}` with required scopes
-5. **Create connection** — call `create_aws_action_connection()` named `{connection_name}`
-6. **Retrieve external ID** — fetch from `GET /api/v2/connection/custom_connections/{id}` at `data.attributes.data.aws.assumeRole.externalId`
-7. **Update trust policy** — call `update_role_trust_policy()` with the external ID
-8. **Verify connection** — call `verify_connection_ready()` — poll until status is ready
-9. **Transform app JSON** — remove `handle`, replace `connectionId` placeholders with the real connection ID, wrap in API envelope, rename to `{app_name}`
-10. **Create app** — POST to `/api/v2/app-builder/apps`
-11. **Set restriction policy** — POST to `/api/v2/restriction_policy/app-builder-app:{app_id}`
-12. **Publish** — POST to `/api/v2/app-builder/apps/{app_id}/deployment`
+First, **build the workflow spec** based on type:
+- **ECS Rollback**: 4-step chain (describe → register → update → transform). `apiTrigger` with `service_name`, `cluster_name`.
+- **IAM Disable User**: single-step `com.datadoghq.aws.iam.disable_user`. `apiTrigger` with `username`.
+- **Revoke Ingress**: single-step `com.datadoghq.aws.ec2.revoke_security_group_ingress`. `securityTrigger`.
 
-**Output to stdout** (last line, parseable JSON):
+Then:
+8. **Wire connection into spec** — set `connectionEnvs`. The `connectionLabel` must **exactly match** (case-sensitive) the label in `connectionEnvs`.
+9. **Create workflow** — POST to `/api/v2/workflows` with envelope: `{"data": {"type": "workflows", "attributes": {"name": "...", "published": false, "spec": {...}}}}`
+
+App key scopes: `workflows_read`, `workflows_write`, `workflows_run`, `connections_read`, `connections_resolve`.
+
+Save scripts: `scripts/testing/generated/{run_id}/wf_{N}_{short_label}.py`
+
+### Output & Verification (both phases)
+
+Each script outputs parseable JSON on its last line:
 ```json
-{"app_id": "...", "connection_id": "...", "role_name": "...", "app_key_id": "..."}
+{"app_id|workflow_id": "...", "connection_id": "...", "role_name": "..."}
 ```
 
-Save scripts to:
-- `scripts/testing/generated/{run_id}/app_1_{short_label}.py`
-- `scripts/testing/generated/{run_id}/app_2_{short_label}.py`
-
-### Verify Each App
-
-After each app script succeeds:
-- `dd_verify.py --type connection --id <connection_id> --expected-name "{connection_name}"`
-- `dd_verify.py --type app --id <app_id> --expected-name "{app_name}"`
+Verify each with:
+- `dd_verify.py --type connection --id <id> --expected-name "{name}"`
+- `dd_verify.py --type app|workflow --id <id> --expected-name "{name}"`
 - `dd_verify.py --type iam-role --id "{role_name}" --expected-permissions <count>`
 
-**Phase 3 creates per app**: 1 IAM role, 1 connection, 1 app key, 1 app (8 total resources for 2 apps).
+**Per resource**: 1 IAM role, 1 connection, 1 app/workflow (6 total per phase for 2 resources each).
 
----
-
-## Phase 4: Build Workflows
-
-For **each** of the 2 selected workflows, generate and execute a Python script that follows the **workflow-automation skill's full flow**. Each workflow is a separate script.
-
-### Per-Workflow Script Flow
-
-For each selected workflow (using its `short_label` from `selection.json`):
-
-1. **Build workflow spec** — construct a workflow JSON spec based on the workflow type:
-   - **ECS Rollback**: 4-step chain — describe task definition → register new task definition (with previous image) → update ECS service → data transform. Uses `apiTrigger` with `service_name` and `cluster_name` input params.
-   - **IAM Disable User**: single-step — `com.datadoghq.aws.iam.disable_user`. Uses `apiTrigger` with `username` input param.
-   - **Revoke Ingress**: single-step — `com.datadoghq.aws.ec2.revoke_security_group_ingress`. Uses `securityTrigger`.
-
-2. **Extract actions from spec** — use `iam_permissions.py:extract_actions_from_workflow_json()` to resolve needed IAM permissions
-3. **Create IAM role** — call `ensure_iam_role("{role_name}")`
-4. **Scope permissions** — call `update_role_permissions()` to scope the role
-5. **Create scoped app key** — named `{app_key_name}` with required scopes (`workflows_read`, `workflows_write`, `workflows_run`, `connections_read`, `connections_resolve`)
-6. **Create connection** — call `create_aws_action_connection()` named `{connection_name}`
-7. **Retrieve external ID and update trust policy** — same as Phase 3
-8. **Verify connection** — call `verify_connection_ready()`
-9. **Wire connection into spec** — set `connectionEnvs` with the connection ID. The `connectionLabel` in each step must **exactly match** (case-sensitive) the label string in `connectionEnvs`
-10. **Create workflow** — POST to `/api/v2/workflows` with the full spec wrapped in the API envelope:
-    ```json
-    {
-      "data": {
-        "type": "workflows",
-        "attributes": {
-          "name": "{workflow_name}",
-          "description": "Test workflow for {type}",
-          "published": false,
-          "spec": { "steps": [...], "triggers": [...], "connectionEnvs": [...] }
-        }
-      }
-    }
-    ```
-
-**Output to stdout** (last line, parseable JSON):
-```json
-{"workflow_id": "...", "connection_id": "...", "role_name": "...", "app_key_id": "..."}
-```
-
-Save scripts to:
-- `scripts/testing/generated/{run_id}/wf_1_{short_label}.py`
-- `scripts/testing/generated/{run_id}/wf_2_{short_label}.py`
-
-### Verify Each Workflow
-
-After each workflow script succeeds:
-- `dd_verify.py --type connection --id <connection_id> --expected-name "{connection_name}"`
-- `dd_verify.py --type workflow --id <workflow_id> --expected-name "{workflow_name}"`
-- `dd_verify.py --type iam-role --id "{role_name}" --expected-permissions <count>`
-
-**Phase 4 creates per workflow**: 1 IAM role, 1 connection, 1 app key, 1 workflow (8 total resources for 2 workflows).
+Phases 3 and 4 are independent and can run in parallel.
 
 ---
 
@@ -503,95 +431,11 @@ At the end of the test run:
 
 ---
 
-## Manifest Format
+## Manifest & Diagnostics
 
-After each phase, update `scripts/testing/generated/{run_id}/manifest.json`. The manifest tracks **all** created resources using arrays (multiple of each type):
-
-```json
-{
-  "run_id": "<run_id>",
-  "timestamp": "<ISO 8601 timestamp>",
-  "phases": {
-    "repo_analysis": {"status": "passed|failed|skipped", "output_files": ["datadog-recommendations.md", "repo-analysis.json"]},
-    "selection": {"status": "passed|failed|skipped", "output_file": "selection.json"},
-    "apps": {"status": "passed|failed|skipped"},
-    "workflows": {"status": "passed|failed|skipped"},
-    "dashboard": {"status": "passed|failed|skipped"},
-    "service_catalog": {"status": "passed|failed|skipped"},
-    "cleanup": {"status": "pending|passed|failed"}
-  },
-  "iam_roles": [
-    {"name": "DatadogAction-TestApp-{short_label_1}-{run_id}", "source": "app-builder", "app_label": "<short_label from selection>"},
-    {"name": "DatadogAction-TestApp-{short_label_2}-{run_id}", "source": "app-builder", "app_label": "<short_label from selection>"},
-    {"name": "DatadogAction-TestWF-{short_label_3}-{run_id}", "source": "workflow-automation", "wf_label": "<short_label from selection>"},
-    {"name": "DatadogAction-TestWF-{short_label_4}-{run_id}", "source": "workflow-automation", "wf_label": "<short_label from selection>"}
-  ],
-  "connections": [
-    {"id": "<uuid>", "name": "TestConn-App-{short_label_1}-{run_id}"},
-    {"id": "<uuid>", "name": "TestConn-App-{short_label_2}-{run_id}"},
-    {"id": "<uuid>", "name": "TestConn-WF-{short_label_3}-{run_id}"},
-    {"id": "<uuid>", "name": "TestConn-WF-{short_label_4}-{run_id}"}
-  ],
-  "app_keys": [
-    {"id": "<uuid>", "name": "TestKey-App-{short_label_1}-{run_id}"},
-    {"id": "<uuid>", "name": "TestKey-App-{short_label_2}-{run_id}"},
-    {"id": "<uuid>", "name": "TestKey-WF-{short_label_3}-{run_id}"},
-    {"id": "<uuid>", "name": "TestKey-WF-{short_label_4}-{run_id}"}
-  ],
-  "apps": [
-    {"id": "<uuid>", "name": "TestApp-{short_label_1}-{run_id}", "template": "<selected template>"},
-    {"id": "<uuid>", "name": "TestApp-{short_label_2}-{run_id}", "template": "<selected template>"}
-  ],
-  "workflows": [
-    {"id": "<uuid>", "name": "TestWF-{short_label_3}-{run_id}", "type": "<selected workflow type>"},
-    {"id": "<uuid>", "name": "TestWF-{short_label_4}-{run_id}", "type": "<selected workflow type>"}
-  ],
-  "dashboards": [{"id": "<id>", "name": "TestDash-{run_id}"}],
-  "monitors": [{"id": "<id>", "name": "TestMon-CPU-{run_id}"}],
-  "teams": [{"id": "<uuid>", "handle": "<team handle>", "name": "<team name>"}],
-  "catalog_entities": [{"name": "<entity name>", "kind": "service"}]
-}
-```
-
-All `{short_label_N}` values and resource names are populated from the Phase 2 `selection.json`, which in turn derives them from Phase 1's `repo-analysis.json`.
-
----
-
-## Failure Analysis
-
-When a phase or sub-step fails, diagnose the error using these known patterns:
-
-| Error | Likely Cause | Suggested Fix |
-|---|---|---|
-| 403 on `/api/v2/actions/connections` | App key missing `connections_write` scope | Update action-connections skill scope list |
-| 403 on `/api/v2/app-builder/apps` | App key missing `apps_write` scope | Update app-builder skill scope list |
-| 400 on app creation with "handle already exists" | JSON transform still contains `handle` field | Update app-builder skill transform logic to strip `handle` |
-| 400 on app creation with "invalid payload" | Missing `{"data": {"type": "appDefinitions", "attributes": {...}}}` envelope | Update app-builder skill API envelope docs |
-| Connection not ready after 60s | External ID not applied to IAM trust policy | Check action-connections IAM trust policy step |
-| 409 on workflow creation | Handle collision | Skill should use unique handles |
-| 422 on catalog entity | Team doesn't exist yet | Skill's team-first flow not followed |
-| 429 on any endpoint | Rate limited | Add retry with exponential backoff |
-| `ConnectionError` or `Timeout` | Network issue or wrong DD_SITE | Check DD_SITE env var |
-| 403 on `/api/v2/workflows` | App key missing `workflows_write` scope | Check scoped key creation |
-| Multiple apps fail with same IAM error | IAM rate limiting on role creation | Add delay between app builds |
-| Connection 1 ready but Connection 2 times out | Trust policy updated for wrong role | Check role name matches connection |
-| Phase 1 finds 0 AWS services | Wrong repo path or unsupported IaC format | Verify target repo path exists and contains supported IaC files (Terraform, CloudFormation, CDK) |
-| Phase 2 selects <2 apps or <2 workflows | Not enough candidates from repo analysis | Relax selection to accept fewer candidates, log warning |
-
-For unknown errors: include the full API response body, status code, and the request that caused it. Suggest which section of which skill file likely needs updating.
-
----
-
-## Partial Runs
-
-The user may request:
-- **Test specific phases only:** `"Run just Phase 3 and Phase 5"` — run only those phases, use provided IDs for dependencies.
-- **Test a single app or workflow:** `"Test just the <short_label> app"` — run Phase 3 for that one app only.
-- **Re-test with existing resources:** `"Re-test dashboard using app IDs abc-123 and def-456"` — skip Phases 1-4, use provided IDs, run only Phase 5.
-- **Resume from a failure:** `"Continue from Phase 4, app IDs are abc-123 and def-456"` — skip already-passed phases, use provided IDs for dependencies.
-- **Skip repo analysis:** `"Test all skills using <app1> and <app2> apps, <wf1> and <wf2> workflows"` — skip Phases 1-2, use the specified selections directly.
-
-In partial runs, still generate a manifest and report, and still clean up only the resources created in this run.
+Update `scripts/testing/generated/{run_id}/manifest.json` after each phase with created resource IDs.
+For the full manifest JSON schema, failure diagnosis patterns (common 403/400/409/429 errors and fixes),
+and partial run support, see `.claude/skills/repo-analyzer/references/test-orchestrator-reference.md`.
 
 ---
 

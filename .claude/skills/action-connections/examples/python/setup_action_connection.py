@@ -7,9 +7,8 @@ Designed to be imported and used in Lambda functions or other Python code.
 Main function: setup_datadog_action_connection()
 
 Workflow:
-1. Creates an application key with actions scope
-2. Creates an AWS action connection in Datadog
-3. Updates the IAM role trust policy with the external ID from Datadog
+1. Creates an AWS action connection in Datadog
+2. Updates the IAM role trust policy with the external ID from Datadog
 
 Example usage with XA_Session pattern:
     from datadog_helpers.setup_action_connection import setup_datadog_action_connection
@@ -42,135 +41,6 @@ from datadog_helpers.datadog_helpers import DatadogResponse, build_headers, BASE
 # Datadog's AWS account ID for action connections
 # This is the account that will assume the role in your AWS account
 DATADOG_AWS_ACCOUNT_ID = "464622532012"
-
-
-def create_app_key_with_actions_scope(
-    api_key: str,
-    app_key: str,
-    key_name: str = "DatadogActionsKey",
-    max_retries: int = DEFAULT_MAX_RETRIES
-) -> DatadogResponse:
-    """
-    Create a new Datadog application key with App Builder & Workflow Automation scopes.
-
-    Scopes include:
-    - connections_read: List and view available connections
-    - connections_write: Create and delete connections
-    - workflows_read: View workflows
-    - workflows_run: Run workflows
-    - workflows_write: Create, edit, and delete workflows
-    - apps_run: View and run Apps in App Builder
-    - apps_write: Create, edit, and delete Apps in App Builder
-
-    Args:
-        api_key: Datadog API key
-        app_key: Existing Datadog application key (with permission to create keys)
-        key_name: Name for the new application key
-        max_retries: Maximum number of retry attempts
-
-    Returns:
-        DatadogResponse with the new app key in data["key"]
-    """
-    headers = build_headers(api_key, app_key)
-
-    # Add random suffix to ensure unique key name on every run
-    import random
-    random_suffix = random.randint(1000, 9999)
-    unique_key_name = f"{key_name}_{random_suffix}"
-
-    # App Builder & Workflow Automation scopes
-    scopes = [
-    "api_keys_delete",
-    "api_keys_read",
-    "api_keys_write",
-    "apps_datastore_manage",
-    "apps_datastore_read",
-    "apps_datastore_write",
-    "apps_run",
-    "apps_write",
-    "aws_configuration_edit",
-    "aws_configuration_read",
-    "aws_configurations_manage",
-    "client_tokens_read",
-    "client_tokens_write",
-    "connection_groups_read",
-    "connection_groups_write",
-    "connections_read",
-    "connections_resolve",
-    "connections_write",
-    "on_prem_runner_read",
-    "on_prem_runner_use",
-    "on_prem_runner_write",
-    "org_app_keys_read",
-    "org_app_keys_write",
-    "user_app_keys",
-    "workflows_read",
-    "workflows_run",
-    "workflows_write"
-  ]
-
-    payload = {
-        "data": {
-            "type": "application_keys",
-            "attributes": {
-                "name": unique_key_name,
-                "scopes": scopes
-            }
-        }
-    }
-
-    for attempt in range(max_retries + 1):
-        try:
-            response = requests.post(
-                f"{BASE_URL}/api/v2/current_user/application_keys",
-                headers=headers,
-                json=payload,
-                timeout=DEFAULT_TIMEOUT
-            )
-
-            if response.status_code == 201:
-                response_data = response.json()
-                new_app_key = response_data.get("data", {}).get("attributes", {}).get("key", "")
-
-                return DatadogResponse(
-                    success=True,
-                    status_code=201,
-                    message=f"Created app key with actions scope: {unique_key_name}",
-                    data={
-                        "key": new_app_key,
-                        "id": response_data.get("data", {}).get("id", ""),
-                        "full_response": response_data
-                    }
-                )
-            else:
-                error_msg = response.json().get("errors", [response.text]) if response.text else "No error details"
-
-                if attempt < max_retries:
-                    time.sleep(1)
-                    continue
-
-                return DatadogResponse(
-                    success=False,
-                    status_code=response.status_code,
-                    message=f"Failed to create app key: {error_msg}"
-                )
-
-        except Exception as e:
-            if attempt < max_retries:
-                time.sleep(1)
-                continue
-
-            return DatadogResponse(
-                success=False,
-                status_code=0,
-                message=f"Error creating app key: {e}"
-            )
-
-    return DatadogResponse(
-        success=False,
-        status_code=0,
-        message=f"Failed to create app key after {max_retries} retries"
-    )
 
 
 def create_aws_action_connection(
@@ -689,7 +559,6 @@ def setup_datadog_action_connection(
     aws_session=None,
     role_name: str = "DatadogActionRole",
     connection_name: str = "DatadogAWSConnection",
-    app_key_name: str = "DatadogActionsKey",
     org_id: str = None,
     permissions: list = None
 ) -> DatadogResponse:
@@ -699,20 +568,18 @@ def setup_datadog_action_connection(
     This function orchestrates the setup process:
     Step 0:   Ensure IAM role exists (auto-creates if missing)
     Step 0.5: Scope role permissions (if permissions list provided)
-    Step 1:   Creates an application key with actions scope
-    Step 2:   Creates an AWS action connection in Datadog
-    Step 3:   Updates the IAM role trust policy with the external ID
-    Step 4:   Sets connection restriction policy (makes it org-wide accessible)
-    Step 5:   Verifies connection is ready and accessible
+    Step 1:   Creates an AWS action connection in Datadog
+    Step 2:   Updates the IAM role trust policy with the external ID
+    Step 3:   Sets connection restriction policy (makes it org-wide accessible)
+    Step 4:   Verifies connection is ready and accessible
 
     Args:
         api_key: Datadog API key
-        app_key: Existing Datadog application key
+        app_key: Datadog application key scoped for actions (see Required App Key Scopes)
         role_arn: ARN of the AWS IAM role (optional if role_name provided — will be constructed)
         aws_session: Optional boto3 Session object (for XA_Session pattern)
         role_name: Name of the IAM role (for trust policy update and auto-creation)
         connection_name: Name for the action connection
-        app_key_name: Name for the new app key with actions scope
         org_id: Datadog organization ID (fetched automatically if not provided)
         permissions: Optional list of IAM permissions to scope the role to (least-privilege)
 
@@ -720,8 +587,6 @@ def setup_datadog_action_connection(
         DatadogResponse with complete setup results in data dict:
         {
             "steps_completed": List[str],
-            "app_key_id": str,
-            "actions_app_key": str,
             "connection_id": str,
             "external_id": str,
             "role_name": str,
@@ -731,8 +596,6 @@ def setup_datadog_action_connection(
     """
     results = {
         "steps_completed": [],
-        "app_key_id": None,
-        "actions_app_key": None,
         "connection_id": None,
         "external_id": None,
         "role_name": role_name,
@@ -771,28 +634,10 @@ def setup_datadog_action_connection(
             )
         results["steps_completed"].append("role_permissions_scoped")
 
-    # Step 1: Create app key with actions scope
-    app_key_response = create_app_key_with_actions_scope(api_key, app_key, app_key_name)
-
-    if not app_key_response.success:
-        return DatadogResponse(
-            success=False,
-            status_code=app_key_response.status_code,
-            message=f"Step 1 failed: {app_key_response.message}",
-            data=results
-        )
-
-    results["app_key_id"] = app_key_response.data["id"]
-    results["actions_app_key"] = app_key_response.data["key"]
-    results["steps_completed"].append("app_key_created")
-
-    # Use the new app key for subsequent calls
-    actions_app_key = app_key_response.data["key"]
-
-    # Step 2: Create action connection
+    # Step 1: Create action connection
     connection_response = create_aws_action_connection(
         api_key,
-        actions_app_key,
+        app_key,
         connection_name,
         role_arn,
         aws_session=aws_session
@@ -802,7 +647,7 @@ def setup_datadog_action_connection(
         return DatadogResponse(
             success=False,
             status_code=connection_response.status_code,
-            message=f"Step 2 failed: {connection_response.message}",
+            message=f"Step 1 failed: {connection_response.message}",
             data=results
         )
 
@@ -814,7 +659,7 @@ def setup_datadog_action_connection(
         try:
             list_response = requests.get(
                 f"{BASE_URL}/api/v2/actions/connections",
-                headers=build_headers(api_key, actions_app_key),
+                headers=build_headers(api_key, app_key),
                 timeout=DEFAULT_TIMEOUT
             )
 
@@ -830,7 +675,7 @@ def setup_datadog_action_connection(
                     try:
                         get_response = requests.get(
                             f"{BASE_URL}/api/v2/connection/custom_connections/{results['connection_id']}",
-                            headers=build_headers(api_key, actions_app_key),
+                            headers=build_headers(api_key, app_key),
                             timeout=DEFAULT_TIMEOUT
                         )
 
@@ -866,7 +711,7 @@ def setup_datadog_action_connection(
         results["external_id"] = connection_response.data["external_id"]
         results["steps_completed"].append("connection_created")
 
-    # Step 3: Update IAM role trust policy
+    # Step 2: Update IAM role trust policy
     trust_policy_response = update_role_trust_policy(
         role_name,
         results["external_id"],
@@ -877,13 +722,13 @@ def setup_datadog_action_connection(
         return DatadogResponse(
             success=False,
             status_code=trust_policy_response.status_code,
-            message=f"Step 3 failed: {trust_policy_response.message}",
+            message=f"Step 2 failed: {trust_policy_response.message}",
             data=results
         )
 
     results["steps_completed"].append("trust_policy_updated")
 
-    # Step 4: Get org ID if not provided
+    # Step 3: Get org ID if not provided
     if not org_id:
         try:
             org_response = requests.get(
@@ -903,7 +748,7 @@ def setup_datadog_action_connection(
             # Non-fatal - continue without setting restriction policy
             print(f"Warning: Could not fetch org ID: {e}")
 
-    # Step 5: Set connection restriction policy (make it org-wide)
+    # Step 3b: Set connection restriction policy (make it org-wide)
     # NOTE: As of this implementation, action connections may not support
     # restriction policies in the same way as app-builder apps.
     # Connections may be creator-scoped by default or use a different sharing mechanism.
@@ -923,10 +768,10 @@ def setup_datadog_action_connection(
             # This is expected if action connections don't support restriction policies
             print(f"Info: Restriction policy not set - {policy_response.message}")
 
-    # Step 6: Verify connection is ready
+    # Step 4: Verify connection is ready
     verify_response = verify_connection_ready(
         api_key,
-        actions_app_key,
+        app_key,
         results["connection_id"],
         max_wait_seconds=30
     )
