@@ -11,6 +11,12 @@ description: >
   submission. Trigger phrases: "app builder", "internal tool", "manage EC2 in Datadog",
   "embed app in dashboard", "action_query_names_to_connection_ids", "apps_write scope",
   "appDefinitions API", "publish app", "manage ECS tasks", "explore S3".
+  Do NOT use for creating the IAM trust setup (use action-connections), writing
+  workflow automation specs (use workflow-automation), or creating dashboards
+  without embedded apps (use dashboards).
+compatibility: >
+  Requires Python 3.8+, requests, DD_API_KEY and DD_APP_KEY env vars
+  (app key scopes: apps_run, apps_write, connections_read, connections_resolve).
 metadata:
   author: hackathon-team-3
   version: 1.0.0
@@ -54,9 +60,11 @@ An action connection must exist before creating an app. The app's ID (returned a
 
 | Requirement | Details |
 |---|---|
-| Action connection | Must exist; provide its UUID as the `connectionId` when creating the app |
+| Action connection | Created automatically via action-connections skill if not provided; or provide an existing UUID as the `connectionId` |
 | App key scopes | `apps_run`, `apps_write`, `connections_read`, `connections_resolve` |
 | Org ID | Required for setting restriction policies; fetch from `GET /api/v2/current_user` |
+
+**Note:** The action-connections skill handles IAM role creation and permission scoping. You do not need to create IAM roles manually.
 
 ---
 
@@ -146,39 +154,234 @@ payload = {
 
 ## API Workflow: Create → Restrict → Publish
 
+All endpoints require these headers:
+
+```
+DD-API-KEY: ${DD_API_KEY}
+DD-APPLICATION-KEY: ${DD_APP_KEY}
+Content-Type: application/json
+```
+
+Required app key scopes: `apps_write`, `connections_resolve`, `workflows_run` (for create/update); `apps_run`, `connections_read` (for read).
+
 ### Step 1 — Create the app
 
-```
-POST /api/v2/app-builder/apps
+**`POST https://api.datadoghq.com/api/v2/app-builder/apps`**
+
+**Request body:**
+```json
+{
+  "data": {
+    "type": "appDefinitions",
+    "attributes": {
+      "name": "EC2 Management Console",
+      "description": "View and manage EC2 instances",
+      "rootInstanceName": "grid0",
+      "components": [
+        {
+          "type": "grid",
+          "name": "grid0",
+          "properties": { "children": [] },
+          "events": []
+        }
+      ],
+      "queries": [
+        {
+          "name": "listInstances",
+          "type": "action",
+          "id": "unique-query-uuid",
+          "properties": {
+            "fqn": "com.datadoghq.aws.ec2.describe_ec2_instances",
+            "connectionId": "aaaabbbb-cccc-dddd-eeee-ffffffffffff",
+            "inputs": { "region": "us-east-1" }
+          },
+          "events": []
+        }
+      ],
+      "connections": []
+    }
+  }
+}
 ```
 
-Body: the wrapped payload from `transform_app_json_for_api()`. Returns: `data.id` — the app UUID.
+**Response (201):**
+```json
+{
+  "data": {
+    "id": "12345678-abcd-efgh-ijkl-123456789012",
+    "type": "appDefinitions",
+    "attributes": {
+      "name": "EC2 Management Console",
+      "description": "View and manage EC2 instances"
+    }
+  }
+}
+```
+
+Key field: `data.id` — the app UUID. Save this for restriction policy and publishing.
+
+**Errors:** `400` (invalid app definition), `403` (missing `apps_write` scope), `429` (rate limited).
+
+**curl:**
+```bash
+curl -X POST "https://api.datadoghq.com/api/v2/app-builder/apps" \
+  -H "DD-API-KEY: ${DD_API_KEY}" \
+  -H "DD-APPLICATION-KEY: ${DD_APP_KEY}" \
+  -H "Content-Type: application/json" \
+  -d @transformed-app.json
+```
 
 ### Step 2 — Set org restriction policy
 
-```
-POST /api/v2/restriction_policy/app-builder-app:{app_id}
+**`POST https://api.datadoghq.com/api/v2/restriction_policy/app-builder-app:{app_id}`**
+
+**Request body:**
+```json
+{
+  "data": {
+    "id": "app-builder-app:12345678-abcd-efgh-ijkl-123456789012",
+    "type": "restriction_policy",
+    "attributes": {
+      "bindings": [
+        {
+          "relation": "editor",
+          "principals": ["org:your-org-id"]
+        }
+      ]
+    }
+  }
+}
 ```
 
-```python
-payload = {
+Field notes:
+- `id`: Must be `app-builder-app:{app_id}` (resource type prefix)
+- `relation`: For App Builder apps, valid values are `viewer`, `editor`
+
+**curl:**
+```bash
+curl -X POST "https://api.datadoghq.com/api/v2/restriction_policy/app-builder-app:${APP_ID}" \
+  -H "DD-API-KEY: ${DD_API_KEY}" \
+  -H "DD-APPLICATION-KEY: ${DD_APP_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
     "data": {
-        "id": f"app-builder-app:{app_id}",
-        "type": "restriction_policy",
-        "attributes": {
-            "bindings": [{"relation": "editor", "principals": [f"org:{org_id}"]}]
-        }
+      "id": "app-builder-app:'"${APP_ID}"'",
+      "type": "restriction_policy",
+      "attributes": {
+        "bindings": [{"relation": "editor", "principals": ["org:'"${ORG_ID}"'"]}]
+      }
     }
-}
+  }'
 ```
 
 ### Step 3 — Publish the app
 
-```
-POST /api/v2/app-builder/apps/{app_id}/deployment
+**`POST https://api.datadoghq.com/api/v2/app-builder/apps/{app_id}/deployment`**
+
+Empty request body. After this call the app is visible in the App Builder catalog and can be embedded in dashboards.
+
+**Response (201):**
+```json
+{
+  "data": {
+    "id": "deployment-uuid",
+    "type": "deployment",
+    "attributes": {}
+  }
+}
 ```
 
-Empty body. After this call the app is visible in the App Builder catalog and can be embedded in dashboards.
+**curl:**
+```bash
+curl -X POST "https://api.datadoghq.com/api/v2/app-builder/apps/${APP_ID}/deployment" \
+  -H "DD-API-KEY: ${DD_API_KEY}" \
+  -H "DD-APPLICATION-KEY: ${DD_APP_KEY}" \
+  -H "Content-Type: application/json"
+```
+
+---
+
+## Additional API Endpoints
+
+### GET /api/v2/app-builder/apps — List apps
+
+Paginated. Returns basic app info (ID, name, description).
+
+**Query parameters:**
+| Param | Type | Description |
+|---|---|---|
+| `limit` | int | Apps per page |
+| `page` | int | Page number |
+| `filter[name]` | string | Filter by app name |
+| `filter[query]` | string | Filter by name or creator |
+| `filter[deployed]` | bool | Filter by publish status |
+| `filter[tags]` | string | Filter by tags |
+| `sort` | string | Sort field (e.g., `name`, `-name`, `created_at`) |
+
+```bash
+curl -X GET "https://api.datadoghq.com/api/v2/app-builder/apps?limit=10&filter[name]=EC2" \
+  -H "DD-API-KEY: ${DD_API_KEY}" \
+  -H "DD-APPLICATION-KEY: ${DD_APP_KEY}"
+```
+
+### GET /api/v2/app-builder/apps/{app_id} — Get full app definition
+
+Returns the complete app with components, queries, and connections. Optional `version` query param (`latest`, `deployed`, or version number).
+
+```bash
+curl -X GET "https://api.datadoghq.com/api/v2/app-builder/apps/${APP_ID}?version=deployed" \
+  -H "DD-API-KEY: ${DD_API_KEY}" \
+  -H "DD-APPLICATION-KEY: ${DD_APP_KEY}"
+```
+
+**Status codes:** `200`, `400`, `403`, `404`, `410` (deleted).
+
+### PATCH /api/v2/app-builder/apps/{app_id} — Update app
+
+Creates a new version of the app. Same body format as POST create.
+
+```bash
+curl -X PATCH "https://api.datadoghq.com/api/v2/app-builder/apps/${APP_ID}" \
+  -H "DD-API-KEY: ${DD_API_KEY}" \
+  -H "DD-APPLICATION-KEY: ${DD_APP_KEY}" \
+  -H "Content-Type: application/json" \
+  -d @updated-app.json
+```
+
+### DELETE /api/v2/app-builder/apps/{app_id} — Delete app
+
+```bash
+curl -X DELETE "https://api.datadoghq.com/api/v2/app-builder/apps/${APP_ID}" \
+  -H "DD-API-KEY: ${DD_API_KEY}" \
+  -H "DD-APPLICATION-KEY: ${DD_APP_KEY}"
+```
+
+**Status codes:** `200`, `400`, `403`, `404`, `410`.
+
+### DELETE /api/v2/app-builder/apps/{app_id}/deployment — Unpublish app
+
+Removes the live version. The app can still be updated and republished later.
+
+```bash
+curl -X DELETE "https://api.datadoghq.com/api/v2/app-builder/apps/${APP_ID}/deployment" \
+  -H "DD-API-KEY: ${DD_API_KEY}" \
+  -H "DD-APPLICATION-KEY: ${DD_APP_KEY}"
+```
+
+### Error response shape
+
+All errors follow the JSON:API format:
+```json
+{
+  "errors": [
+    {
+      "status": "403",
+      "title": "Forbidden",
+      "detail": "Missing required scope: apps_write"
+    }
+  ]
+}
+```
 
 ---
 
@@ -236,9 +439,71 @@ for placeholder, real_id in app_id_map.items():
 
 ---
 
+## Action Catalog Reference
+
+When you need to look up available actions, their FQNs, required inputs, or output schemas:
+
+1. Read the master index at `.claude/skills/shared/action-catalog-index.md` to find which service file you need
+2. Read the per-service file at `.claude/skills/shared/actions-by-service/{service}.md` for full action details
+3. Use the exact FQN from the reference (e.g., `com.datadoghq.aws.ec2.describe_ec2_instances`) in query `actionId` fields
+
+Common service files for this skill:
+- `aws-ec2.md` — EC2 instance management
+- `aws-ecs.md` — ECS service/task management
+- `aws-iam.md` — IAM user/role/policy management
+- `aws-s3.md` — S3 bucket/object operations
+- `aws-lambda.md` — Lambda function management
+- `aws-dynamodb.md` — DynamoDB table/item operations
+- `aws-sqs.md` — SQS queue operations
+- `aws-stepfunctions.md` — Step Functions state machine management
+- `aws-autoscaling.md` — Auto Scaling group management
+- `core-workflow.md` — Loop, condition, JS transform actions
+
+---
+
+## Connection Setup with Least-Privilege Role
+
+When creating an app, you can automatically provision a dedicated IAM role + connection scoped to exactly the AWS actions the app needs. This uses the shared `iam_permissions.py` utility to extract actions from the app JSON and resolve them to IAM permissions.
+
+**Step-by-step:**
+1. Extract action FQNs from the app JSON using the shared utility
+2. Resolve FQNs to IAM permissions via the action catalog
+3. Call `setup_datadog_action_connection(permissions=...)` from the action-connections skill to create a dedicated role + connection
+4. Use the returned `connection_id` for the app
+
+```python
+import sys
+sys.path.insert(0, ".claude/skills/shared")
+from iam_permissions import load_action_catalog, extract_actions_from_app_json, resolve_permissions
+
+# Step 1-2: Extract actions and resolve permissions
+catalog = load_action_catalog(".claude/skills/shared/actions-by-service")
+actions = extract_actions_from_app_json("path/to/app.json")
+permissions = resolve_permissions(actions, catalog)
+
+# Step 3: Create dedicated role + connection
+sys.path.insert(0, ".claude/skills/action-connections/examples/python")
+from setup_action_connection import setup_datadog_action_connection
+
+response = setup_datadog_action_connection(
+    api_key=os.environ["DD_API_KEY"],
+    app_key=os.environ["DD_APP_KEY"],
+    role_name="DatadogAction-MyApp",
+    connection_name="MyApp-Connection",
+    permissions=permissions,  # Scopes the role to only these permissions
+)
+connection_id = response.data["connection_id"]
+
+# Step 4: Create the app using this connection
+```
+
+This gives each app its own IAM role with only the permissions it actually uses.
+
+---
+
 ## Cross-Skill Notes
 
-- **Requires action-connections**: The connection UUID must exist before app creation. Use `action-connections` skill first.
+- **Delegates to action-connections**: The action-connections skill is the single IAM authority. This skill extracts the needed permissions and delegates role + connection creation. You can also provide a pre-existing `connection_id` to skip auto-provisioning.
 - **Feeds into dashboards**: Each created app's ID must be collected to perform placeholder substitution in dashboard templates. The `dashboards` skill handles that embedding step.
 - Connection IDs flow through two paths: Terraform uses `action_query_names_to_connection_ids`; the Python API path uses `transform_app_json_for_api()`.
 

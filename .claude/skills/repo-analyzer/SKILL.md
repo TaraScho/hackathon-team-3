@@ -11,6 +11,12 @@ description: >
   for Datadog", "what Datadog resources should I build", "scan my repo for Datadog",
   "generate Datadog recommendations", "what should I build in Datadog for this codebase",
   "audit repo for Datadog", "Datadog onboarding for my repo", "map my AWS services to Datadog".
+  Do NOT use to execute recommendations — this skill only produces the analysis
+  report. Use action-connections, app-builder, workflow-automation, dashboards,
+  or software-catalog to act on recommendations.
+compatibility: >
+  Read-only analysis — no API keys or external dependencies required.
+  Needs file system access to scan repository IaC files.
 metadata:
   author: hackathon-team-3
   version: 1.0.0
@@ -28,7 +34,8 @@ This skill scans a repository's IaC and infrastructure files to detect the AWS s
 repo (IaC files)
       │
       ▼
-repo-analyzer ──► datadog-recommendations.md
+repo-analyzer ──► datadog-recommendations.md (human-readable)
+              └─► repo-analysis.json         (machine-parseable)
                         │
                         ├──► action-connections skill
                         ├──► app-builder skill
@@ -308,11 +315,76 @@ dashboards - SRE golden signals (Tier 1 #3, standalone)
 
 ---
 
+## Structured Output (JSON)
+
+In addition to the markdown report, produce a machine-parseable `repo-analysis.json` file for downstream consumers (e.g., the test orchestrator) that need to programmatically select from recommendations.
+
+### Schema
+
+```json
+{
+  "repo_path": "<analyzed path>",
+  "iac_tooling": "<detected tooling, e.g. Terraform | CloudFormation | CDK TypeScript>",
+  "aws_services": ["<detected AWS service names, e.g. ecs, sqs, iam, s3>"],
+  "microservices": ["<detected service boundaries from directory layout or stack names>"],
+  "risk_patterns": [
+    {
+      "type": "<risk type from Step 4 mapping: iam_broad_permissions | open_security_groups | ecs_deployment | iac_drift | deployment_pipeline_drift>",
+      "files": ["<files where the pattern was detected>"]
+    }
+  ],
+  "app_candidates": [
+    {
+      "template": "<template filename from Step 3 mapping table, e.g. manage-ecs-tasks.json>",
+      "service": "<matched AWS service name>",
+      "tier": 1,
+      "short_label": "<PascalCase short name derived from template — see derivation rule below>"
+    }
+  ],
+  "workflow_candidates": [
+    {
+      "type": "<workflow type from Step 4 mapping: ecs_rollback | iam_disable_user | revoke_ingress | iac_drift_detection>",
+      "risk": "<matched risk pattern type>",
+      "tier": 2,
+      "short_label": "<PascalCase short name — see derivation rule below>"
+    }
+  ]
+}
+```
+
+### `short_label` Derivation Rule
+
+Derive a PascalCase label from the template or workflow name for use in resource naming:
+
+1. For app candidates: take the template filename, strip the `.json` extension, strip prefixes (`manage-`, `explore-`) and suffixes (`-manager`, `-console`), then PascalCase the remainder.
+   - `manage-ecs-tasks.json` → `EcsTasks`
+   - `explore-s3.json` → `S3`
+   - `ec2-management-console.json` → `Ec2Management`
+   - `lambda-function-manager.json` → `LambdaFunction`
+   - `manage-sqs.json` → `Sqs`
+   - `manage-dynamodb.json` → `Dynamodb`
+   - `aws-quick-review.json` → `AwsQuickReview`
+
+2. For workflow candidates: PascalCase the workflow type.
+   - `ecs_rollback` → `EcsRollback`
+   - `iam_disable_user` → `IamDisableUser`
+   - `revoke_ingress` → `RevokeIngress`
+   - `iac_drift_detection` → `IacDriftDetection`
+
+### Population Rules
+
+- `app_candidates` — populated from the Step 3 mapping table: for each detected AWS service, include the corresponding template if it exists in the table.
+- `workflow_candidates` — populated from the Step 4 risk pattern table: for each detected risk pattern, include the corresponding workflow type.
+- `tier` values — assigned per the Step 5 criteria (Tier 1 for primary compute and foundation items, Tier 2 for operational tooling, Tier 3 for advanced automation).
+- Arrays may be empty if no matches are found (e.g., a repo with no IAM resources has no `iam_disable_user` workflow candidate).
+
+---
+
 ## Where to Write the Report
 
-- **Default:** Save as `datadog-recommendations.md` at the root of the analyzed repo path
-- **Fallback:** If the repo path is read-only or the user prefers a different location, save to the current working directory
-- Always state the full output path explicitly in the final response message
+- **Default:** Save `datadog-recommendations.md` and `repo-analysis.json` at the root of the analyzed repo path
+- **Fallback:** If the repo path is read-only or the user prefers a different location, save both files to the current working directory
+- Always state the full output paths explicitly in the final response message
 
 ---
 

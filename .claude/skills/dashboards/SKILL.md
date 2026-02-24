@@ -11,6 +11,11 @@ description: >
   and logs to power dashboard widgets. Trigger phrases: "create dashboard",
   "dashboard JSON", "embed app in dashboard", "datadog_dashboard_json terraform",
   "SRE dashboard", "OTel collector dashboard", "app ID placeholder", "dashboard template".
+  Do NOT use for creating App Builder apps (use app-builder), writing workflow
+  specs (use workflow-automation), or setting up IAM connections (use action-connections).
+compatibility: >
+  Requires Python 3.8+, requests, DD_API_KEY and DD_APP_KEY env vars.
+  For embedded app dashboards: app IDs from the app-builder skill.
 metadata:
   author: hackathon-team-3
   version: 1.0.0
@@ -65,28 +70,118 @@ Seven ready-to-use JSON templates are in `examples/json/`:
 
 ---
 
-## API: Create and Update
+## API: Dashboards
 
-### Create a dashboard
+All endpoints require these headers:
 
 ```
-POST /api/v1/dashboard
+DD-API-KEY: ${DD_API_KEY}
+DD-APPLICATION-KEY: ${DD_APP_KEY}
 Content-Type: application/json
-DD-API-KEY: {api_key}
-DD-APPLICATION-KEY: {app_key}
 ```
 
-Body: the full dashboard JSON object (the contents of a template file, or built programmatically).
+### POST /api/v1/dashboard — Create a dashboard
 
-Returns: `id` — the dashboard ID (used in the URL and for updates).
+**Request body:** The full dashboard JSON object (from a template file, or built programmatically). Key fields:
 
-### Update an existing dashboard
-
+```json
+{
+  "title": "My Dashboard",
+  "description": "Dashboard description",
+  "layout_type": "ordered",
+  "widgets": [
+    {
+      "definition": {
+        "type": "timeseries",
+        "requests": [
+          {
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:system.cpu.user{*}"
+              }
+            ],
+            "response_format": "timeseries"
+          }
+        ],
+        "title": "CPU Usage"
+      },
+      "layout": { "x": 0, "y": 0, "width": 4, "height": 2 }
+    }
+  ],
+  "reflow_type": "fixed",
+  "tags": ["env:prod", "service:my-app"]
+}
 ```
-PUT /api/v1/dashboard/{dashboard_id}
+
+**Response (200):**
+```json
+{
+  "id": "abc-def-ghi",
+  "title": "My Dashboard",
+  "url": "/dashboard/abc-def-ghi/my-dashboard",
+  "layout_type": "ordered",
+  "widgets": [...]
+}
 ```
+
+Key field: `id` — the dashboard ID.
+
+**Errors:** `400` (invalid definition), `403` (auth error), `429` (rate limited).
+
+**curl:**
+```bash
+curl -X POST "https://api.datadoghq.com/api/v1/dashboard" \
+  -H "DD-API-KEY: ${DD_API_KEY}" \
+  -H "DD-APPLICATION-KEY: ${DD_APP_KEY}" \
+  -H "Content-Type: application/json" \
+  -d @dashboard-template.json
+```
+
+### PUT /api/v1/dashboard/{dashboard_id} — Update dashboard
 
 Full replacement — the body must contain the complete dashboard definition, not a partial patch.
+
+```bash
+curl -X PUT "https://api.datadoghq.com/api/v1/dashboard/${DASHBOARD_ID}" \
+  -H "DD-API-KEY: ${DD_API_KEY}" \
+  -H "DD-APPLICATION-KEY: ${DD_APP_KEY}" \
+  -H "Content-Type: application/json" \
+  -d @updated-dashboard.json
+```
+
+### GET /api/v1/dashboard — List dashboards
+
+**Query parameters:**
+| Param | Type | Description |
+|---|---|---|
+| `filter[shared]` | bool | Only shared dashboards |
+| `filter[deleted]` | bool | Only deleted dashboards |
+| `count` | int | Max results (default 100) |
+| `start` | int | Offset for pagination |
+
+```bash
+curl -X GET "https://api.datadoghq.com/api/v1/dashboard?count=50" \
+  -H "DD-API-KEY: ${DD_API_KEY}" \
+  -H "DD-APPLICATION-KEY: ${DD_APP_KEY}"
+```
+
+### GET /api/v1/dashboard/{dashboard_id} — Get dashboard
+
+```bash
+curl -X GET "https://api.datadoghq.com/api/v1/dashboard/${DASHBOARD_ID}" \
+  -H "DD-API-KEY: ${DD_API_KEY}" \
+  -H "DD-APPLICATION-KEY: ${DD_APP_KEY}"
+```
+
+### DELETE /api/v1/dashboard/{dashboard_id} — Delete dashboard
+
+```bash
+curl -X DELETE "https://api.datadoghq.com/api/v1/dashboard/${DASHBOARD_ID}" \
+  -H "DD-API-KEY: ${DD_API_KEY}" \
+  -H "DD-APPLICATION-KEY: ${DD_APP_KEY}"
+```
 
 ### URL construction note
 
@@ -190,26 +285,13 @@ Use `techstories-dashboard-full.json` as the template — it contains placeholde
 
 ---
 
-## Monitor Management
+## API: Monitors
 
 Monitors can be created independently and then referenced inside dashboard widgets.
 
-### Idempotent create-or-update
+### POST /api/v1/monitor — Create a monitor
 
-The `create_or_update_monitor()` helper checks for an existing monitor by name before creating:
-
-```python
-existing = get_existing_monitors(api_key, app_key, monitor_name)
-if existing:
-    # PUT /api/v1/monitor/{id}
-    update_monitor(api_key, app_key, existing["id"], monitor_config)
-else:
-    # POST /api/v1/monitor
-    create_monitor(api_key, app_key, monitor_config)
-```
-
-### Monitor config fields
-
+**Request body:**
 ```json
 {
   "name": "High CPU on EC2",
@@ -226,44 +308,164 @@ else:
 }
 ```
 
+**Response (200):** Returns the full monitor object with `id` field.
+
+**curl:**
+```bash
+curl -X POST "https://api.datadoghq.com/api/v1/monitor" \
+  -H "DD-API-KEY: ${DD_API_KEY}" \
+  -H "DD-APPLICATION-KEY: ${DD_APP_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "High CPU on EC2",
+    "type": "metric alert",
+    "query": "avg(last_5m):avg:aws.ec2.cpuutilization{*} > 90",
+    "message": "CPU is above 90% @pagerduty",
+    "tags": ["env:prod", "service:ec2"],
+    "priority": 3,
+    "options": {
+      "thresholds": {"critical": 90, "warning": 80},
+      "notify_no_data": true,
+      "no_data_timeframe": 10
+    }
+  }'
+```
+
+### GET /api/v1/monitor — List/search monitors
+
+**Query parameters:**
+| Param | Type | Description |
+|---|---|---|
+| `name` | string | Filter by monitor name |
+| `tags` | string | Comma-separated scope tags (e.g., `host:host0`) |
+| `monitor_tags` | string | Comma-separated monitor tags (e.g., `service:my-app`) |
+| `page` | int | Page number (starts at 0) |
+| `page_size` | int | Results per page (default 100, max 1000) |
+| `id_offset` | int | Paginate using last monitor ID |
+
+```bash
+curl -X GET "https://api.datadoghq.com/api/v1/monitor?name=High%20CPU&page_size=50" \
+  -H "DD-API-KEY: ${DD_API_KEY}" \
+  -H "DD-APPLICATION-KEY: ${DD_APP_KEY}"
+```
+
+### PUT /api/v1/monitor/{monitor_id} — Update monitor
+
+Full replacement of the monitor definition.
+
+```bash
+curl -X PUT "https://api.datadoghq.com/api/v1/monitor/${MONITOR_ID}" \
+  -H "DD-API-KEY: ${DD_API_KEY}" \
+  -H "DD-APPLICATION-KEY: ${DD_APP_KEY}" \
+  -H "Content-Type: application/json" \
+  -d @monitor-config.json
+```
+
+### DELETE /api/v1/monitor/{monitor_id} — Delete monitor
+
+```bash
+curl -X DELETE "https://api.datadoghq.com/api/v1/monitor/${MONITOR_ID}" \
+  -H "DD-API-KEY: ${DD_API_KEY}" \
+  -H "DD-APPLICATION-KEY: ${DD_APP_KEY}"
+```
+
+### Idempotent create-or-update pattern
+
+Search by name, update if exists, create if not:
+```bash
+# Search for existing monitor
+EXISTING=$(curl -s "https://api.datadoghq.com/api/v1/monitor?name=High%20CPU%20on%20EC2" \
+  -H "DD-API-KEY: ${DD_API_KEY}" \
+  -H "DD-APPLICATION-KEY: ${DD_APP_KEY}")
+
+# If found, update; otherwise create
+# Check EXISTING array length to decide PUT vs POST
+```
+```
+
 ---
 
-## Custom Metrics and Logs
+## API: Custom Metrics and Logs
 
-### Send custom metrics
+### POST /api/v2/series — Submit metrics
 
-```
-POST /api/v2/series
-Content-Type: application/json
-```
-
-```python
-payload = {
-    "series": [{
-        "metric": "my.app.event_count",
-        "type": 1,         # 0=unspecified, 1=count, 2=rate, 3=gauge
-        "points": [{"timestamp": int(time.time()), "value": 42.0}],
-        "tags": ["env:prod", "service:my-service"],
-        "resources": [{"name": "my-host", "type": "host"}]
-    }]
+**Request body:**
+```json
+{
+  "series": [
+    {
+      "metric": "my.app.event_count",
+      "type": 1,
+      "points": [
+        { "timestamp": 1700000000, "value": 42.0 }
+      ],
+      "tags": ["env:prod", "service:my-service"],
+      "resources": [
+        { "name": "my-host", "type": "host" }
+      ]
+    }
+  ]
 }
 ```
 
-### Send logs
+Field notes:
+- `type`: `0` (unspecified), `1` (count), `2` (rate), `3` (gauge)
+- `timestamp`: Unix epoch seconds
+- `resources`: Optional; associates the metric with a host or other resource
 
-```
-POST https://http-intake.logs.datadoghq.com/api/v2/logs
+**Response (202):** `{"errors": []}` on success.
+
+**curl:**
+```bash
+curl -X POST "https://api.datadoghq.com/api/v2/series" \
+  -H "DD-API-KEY: ${DD_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "series": [{
+      "metric": "my.app.event_count",
+      "type": 1,
+      "points": [{"timestamp": '"$(date +%s)"', "value": 42.0}],
+      "tags": ["env:prod", "service:my-service"]
+    }]
+  }'
 ```
 
-```python
-payload = [{
+Note: The metrics intake only requires `DD-API-KEY` (no app key needed).
+
+### POST /api/v2/logs — Submit logs
+
+**URL:** `https://http-intake.logs.datadoghq.com/api/v2/logs`
+
+**Request body:**
+```json
+[
+  {
     "ddsource": "my-lambda",
     "ddtags": "env:prod,service:my-service",
     "hostname": "lambda-function",
     "message": "User action completed",
     "status": "info"
-}]
+  }
+]
 ```
+
+**Response (202):** Empty body on success.
+
+**curl:**
+```bash
+curl -X POST "https://http-intake.logs.datadoghq.com/api/v2/logs" \
+  -H "DD-API-KEY: ${DD_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '[{
+    "ddsource": "my-lambda",
+    "ddtags": "env:prod,service:my-service",
+    "hostname": "lambda-function",
+    "message": "User action completed",
+    "status": "info"
+  }]'
+```
+
+Note: Logs intake only requires `DD-API-KEY`. Use the `http-intake.logs.datadoghq.com` host (not `api.datadoghq.com`).
 
 ---
 

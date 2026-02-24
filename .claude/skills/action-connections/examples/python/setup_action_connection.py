@@ -462,6 +462,158 @@ def verify_connection_ready(
     )
 
 
+def ensure_iam_role(
+    role_name: str,
+    external_id: str = "placeholder",
+    aws_session=None,
+    datadog_account_id: str = DATADOG_AWS_ACCOUNT_ID
+) -> DatadogResponse:
+    """
+    Ensure an IAM role exists for Datadog action connections.
+
+    If the role already exists, returns it. If not, creates it with a trust
+    policy allowing Datadog's AWS account to assume it.
+
+    Args:
+        role_name: Name for the IAM role
+        external_id: External ID for the trust policy (placeholder until connection is created)
+        aws_session: Optional boto3 Session object (for XA_Session pattern)
+        datadog_account_id: Datadog's AWS account ID (default: 464622532012)
+
+    Returns:
+        DatadogResponse with role_name, role_arn, and created flag
+    """
+    try:
+        if aws_session:
+            iam_client = aws_session.client('iam')
+        else:
+            iam_client = boto3.client('iam')
+
+        # Check if role already exists
+        try:
+            role = iam_client.get_role(RoleName=role_name)
+            return DatadogResponse(
+                success=True,
+                status_code=200,
+                message=f"IAM role already exists: {role_name}",
+                data={
+                    "role_name": role_name,
+                    "role_arn": role["Role"]["Arn"],
+                    "created": False
+                }
+            )
+        except iam_client.exceptions.NoSuchEntityException:
+            pass
+
+        # Create the role with trust policy for Datadog
+        trust_policy = {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Principal": {
+                        "AWS": f"arn:aws:iam::{datadog_account_id}:root"
+                    },
+                    "Action": "sts:AssumeRole",
+                    "Condition": {
+                        "StringEquals": {
+                            "sts:ExternalId": external_id
+                        }
+                    }
+                }
+            ]
+        }
+
+        role = iam_client.create_role(
+            RoleName=role_name,
+            Path="/datadog/",
+            AssumeRolePolicyDocument=json.dumps(trust_policy),
+            Description=f"Datadog action connection role (auto-created)",
+            MaxSessionDuration=3600
+        )
+
+        return DatadogResponse(
+            success=True,
+            status_code=201,
+            message=f"Created IAM role: {role_name}",
+            data={
+                "role_name": role_name,
+                "role_arn": role["Role"]["Arn"],
+                "created": True
+            }
+        )
+
+    except Exception as e:
+        return DatadogResponse(
+            success=False,
+            status_code=0,
+            message=f"Error ensuring IAM role: {e}"
+        )
+
+
+def update_role_permissions(
+    role_name: str,
+    permissions: list,
+    policy_name: str = "DatadogActionPermissions",
+    aws_session=None
+) -> DatadogResponse:
+    """
+    Set the inline permissions policy on a dedicated IAM role.
+
+    Each role is dedicated to one app/workflow, so this replaces (not merges)
+    the policy with exactly the given permissions.
+
+    Args:
+        role_name: Name of the IAM role
+        permissions: List of IAM permission strings (e.g., ["ec2:DescribeInstances"])
+        policy_name: Name for the inline policy
+        aws_session: Optional boto3 Session object
+
+    Returns:
+        DatadogResponse with role_name, policy_name, and permissions_count
+    """
+    try:
+        if aws_session:
+            iam_client = aws_session.client('iam')
+        else:
+            iam_client = boto3.client('iam')
+
+        policy_document = {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Action": sorted(permissions),
+                    "Resource": "*"
+                }
+            ]
+        }
+
+        iam_client.put_role_policy(
+            RoleName=role_name,
+            PolicyName=policy_name,
+            PolicyDocument=json.dumps(policy_document)
+        )
+
+        return DatadogResponse(
+            success=True,
+            status_code=200,
+            message=f"Updated permissions for role: {role_name}",
+            data={
+                "role_name": role_name,
+                "policy_name": policy_name,
+                "permissions_count": len(permissions)
+            }
+        )
+
+    except Exception as e:
+        return DatadogResponse(
+            success=False,
+            status_code=0,
+            message=f"Error updating role permissions: {e}"
+        )
+
+
 def update_role_trust_policy(
     role_name: str,
     external_id: str,
@@ -533,32 +685,36 @@ def update_role_trust_policy(
 def setup_datadog_action_connection(
     api_key: str,
     app_key: str,
-    role_arn: str,
+    role_arn: str = None,
     aws_session=None,
     role_name: str = "DatadogActionRole",
     connection_name: str = "DatadogAWSConnection",
     app_key_name: str = "DatadogActionsKey",
-    org_id: str = None
+    org_id: str = None,
+    permissions: list = None
 ) -> DatadogResponse:
     """
     Complete setup workflow for Datadog action connection.
 
-    This function orchestrates the five-step process:
-    1. Creates an application key with actions scope
-    2. Creates an AWS action connection in Datadog
-    3. Updates the IAM role trust policy with the external ID
-    4. Sets connection restriction policy (makes it org-wide accessible)
-    5. Verifies connection is ready and accessible
+    This function orchestrates the setup process:
+    Step 0:   Ensure IAM role exists (auto-creates if missing)
+    Step 0.5: Scope role permissions (if permissions list provided)
+    Step 1:   Creates an application key with actions scope
+    Step 2:   Creates an AWS action connection in Datadog
+    Step 3:   Updates the IAM role trust policy with the external ID
+    Step 4:   Sets connection restriction policy (makes it org-wide accessible)
+    Step 5:   Verifies connection is ready and accessible
 
     Args:
         api_key: Datadog API key
         app_key: Existing Datadog application key
-        role_arn: ARN of the AWS IAM role
+        role_arn: ARN of the AWS IAM role (optional if role_name provided — will be constructed)
         aws_session: Optional boto3 Session object (for XA_Session pattern)
-        role_name: Name of the IAM role (for trust policy update)
+        role_name: Name of the IAM role (for trust policy update and auto-creation)
         connection_name: Name for the action connection
         app_key_name: Name for the new app key with actions scope
         org_id: Datadog organization ID (fetched automatically if not provided)
+        permissions: Optional list of IAM permissions to scope the role to (least-privilege)
 
     Returns:
         DatadogResponse with complete setup results in data dict:
@@ -569,6 +725,7 @@ def setup_datadog_action_connection(
             "connection_id": str,
             "external_id": str,
             "role_name": str,
+            "role_arn": str,
             "org_id": str
         }
     """
@@ -579,8 +736,40 @@ def setup_datadog_action_connection(
         "connection_id": None,
         "external_id": None,
         "role_name": role_name,
+        "role_arn": role_arn,
         "org_id": org_id
     }
+
+    # Step 0: Ensure IAM role exists
+    role_response = ensure_iam_role(role_name, aws_session=aws_session)
+    if not role_response.success:
+        return DatadogResponse(
+            success=False,
+            status_code=role_response.status_code,
+            message=f"Step 0 failed: {role_response.message}",
+            data=results
+        )
+
+    results["role_arn"] = role_response.data["role_arn"]
+    role_arn = role_response.data["role_arn"]
+    if role_response.data["created"]:
+        results["steps_completed"].append("iam_role_created")
+    else:
+        results["steps_completed"].append("iam_role_exists")
+
+    # Step 0.5: Scope role permissions (if provided)
+    if permissions:
+        perm_response = update_role_permissions(
+            role_name, permissions, aws_session=aws_session
+        )
+        if not perm_response.success:
+            return DatadogResponse(
+                success=False,
+                status_code=perm_response.status_code,
+                message=f"Step 0.5 failed: {perm_response.message}",
+                data=results
+            )
+        results["steps_completed"].append("role_permissions_scoped")
 
     # Step 1: Create app key with actions scope
     app_key_response = create_app_key_with_actions_scope(api_key, app_key, app_key_name)
