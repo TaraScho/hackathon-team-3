@@ -25,6 +25,14 @@ Executes workflow creation and returns a JSON result:
 
 The agent: builds the workflow spec → extracts AWS action FQNs → resolves IAM permissions → creates a dedicated connection (if none provided) → wires connectionEnvs → POSTs the workflow to the API.
 
+## Auto-Discovery from repo-analyzer
+
+If the user does not specify which workflows to create, check `.claude/context/repo-analysis.json` first:
+- If the file exists, read the `workflow_candidates` array and use it as the default work queue.
+- Announce which candidates were found (type, risk pattern, tier) before proceeding.
+- Ask the user to confirm before creating, unless they have already indicated to proceed.
+- If the file does not exist, ask the user which workflow(s) to create.
+
 ## Required Inputs (ask if missing)
 
 | Input | Example |

@@ -298,9 +298,17 @@ Produce a machine-parseable `repo-analysis.json` alongside the markdown report.
 
 ## Where to Write the Report
 
-- **Default:** Save `datadog-recommendations.md` and `repo-analysis.json` at the root of the analyzed repo
-- **Fallback:** If the repo path is read-only, save to the current working directory
-- Always state full output paths in the final response
+Write output to **two locations**:
+
+| Location | File | Purpose |
+|---|---|---|
+| Analyzed repo root | `{repo_path}/datadog-recommendations.md` | Human-browseable report lives with the code |
+| Analyzed repo root | `{repo_path}/repo-analysis.json` | Machine-parseable, lives with the code |
+| Well-known agent handoff path | `.claude/context/repo-analysis.json` | Fixed path all downstream agents check |
+
+- The `.claude/context/repo-analysis.json` write is **always required** — write it regardless of where the analyzed repo lives (local subfolder, external path like `~/repos/stickerlandia`, etc.). The path is relative to the project root where Claude Code is running.
+- **Fallback:** If the repo path is read-only, save the repo-root files to the current working directory instead. The `.claude/context/` write is unaffected.
+- Always state all output paths in the final response.
 
 ---
 

@@ -25,6 +25,14 @@ Executes dashboard creation and returns a JSON result:
 
 The agent: loads the selected template → substitutes app ID placeholders with real IDs → creates monitors if needed → POSTs the dashboard to the API.
 
+## Auto-Discovery from repo-analyzer
+
+If the user asks for an SRE or composite dashboard without specifying services or app IDs, check `.claude/context/repo-analysis.json` first:
+- If the file exists, use the `microservices` array to scope the SRE dashboard (e.g., template variables, service filters).
+- Use `app_candidates[*].short_label` to identify which apps to embed in a composite dashboard.
+- Announce what was found before proceeding.
+- If the file does not exist, ask the user which services and/or app IDs to use.
+
 ## Required Inputs (ask if missing)
 
 | Input | When required |

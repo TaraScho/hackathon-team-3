@@ -181,7 +181,15 @@ Point the skill at the target repo directory provided by the user (or default to
 }
 ```
 
-**Phase 1 verification**: Confirm `repo-analysis.json` has non-empty `app_candidates` and `workflow_candidates` arrays, and `datadog-recommendations.md` lists detected AWS services, has Tier 1/2/3 sections, and contains a dependency build order.
+**Phase 1 also writes to the well-known agent handoff path**: After writing both files to `scripts/testing/generated/{run_id}/`, copy `repo-analysis.json` to `.claude/context/repo-analysis.json`. This keeps the well-known path current so standalone agent invocations (app-builder, workflow-automation, dashboards) can auto-discover the analysis without requiring an explicit handoff.
+
+```python
+import shutil, pathlib
+pathlib.Path(".claude/context").mkdir(parents=True, exist_ok=True)
+shutil.copy(f"scripts/testing/generated/{run_id}/repo-analysis.json", ".claude/context/repo-analysis.json")
+```
+
+**Phase 1 verification**: Confirm `repo-analysis.json` has non-empty `app_candidates` and `workflow_candidates` arrays, and `datadog-recommendations.md` lists detected AWS services, has Tier 1/2/3 sections, and contains a dependency build order. Also confirm `.claude/context/repo-analysis.json` exists and matches the run-scoped file.
 
 ---
 
@@ -450,3 +458,79 @@ and partial run support, see `.claude/skills/repo-analyzer/references/test-orche
 - Each app/workflow gets its own connection. Do NOT share connections between apps or between workflows. This validates the 1:1 pattern the skills prescribe.
 - The `connectionLabel` in workflow steps must **exactly match** (case-sensitive) the label in `connectionEnvs`. Common default: `"INTEGRATION_AWS"`.
 - External ID is at `data.attributes.data.aws.assumeRole.externalId` via `GET /api/v2/connection/custom_connections/{id}` — NOT the actions/connections endpoint.
+
+---
+
+## Dry Run Mode
+
+When invoked with `--dry-run`, the orchestrator runs all phases but skips script execution
+and resource creation. Use this to validate the pipeline without touching AWS or Datadog.
+
+### Dry-run behavior per phase
+
+| Phase | Normal | Dry Run |
+|-------|--------|---------|
+| 0: Preflight | Validate .env | Same — still validate .env |
+| 1: Repo Analysis | Run repo-analyzer (read-only) | Same — still analyze repo |
+| 2: Selection | Write selection.json | Same — still produce selection |
+| 3: Build Apps | Generate + execute scripts | Generate scripts + `py_compile` validate only |
+| 4: Build Workflows | Generate + execute scripts | Generate scripts + `py_compile` validate only |
+| 5: Dashboard | Generate + execute script | Generate script + `py_compile` validate only |
+| 6: Service Catalog | Generate + execute script | Generate script + `py_compile` validate only |
+| 7: Report | PASSED/FAILED per resource | DRY RUN report — what WOULD be created |
+
+### Dry-run script validation
+
+Instead of executing each generated script, validate it with:
+```bash
+python3 -m py_compile scripts/testing/generated/{run_id}/{script}.py && echo "SYNTAX OK"
+```
+
+### Dry-run report format
+
+Replace the normal Phase 7 report block with:
+
+```
+========================================
+SKILL TEST DRY RUN — {run_id}
+Target: {repo_path}
+========================================
+
+Phase 0: Preflight              PASSED
+Phase 1: Repo Analysis          PASSED
+  AWS services: ECS, Lambda, RDS, S3, EventBridge, SQS, API Gateway, CloudFront
+  Risk patterns: iam_broad_permissions, ecs_deployment
+  App candidates: {count}  |  Workflow candidates: {count}
+
+Phase 2: Selection              PASSED
+  Selected: {app_1}, {app_2}, {wf_1}, {wf_2}
+
+Phase 3: Apps (DRY RUN — scripts generated, not executed)
+  app_1_{short_label}.py       SYNTAX OK | Would create:
+    IAM Role:   DatadogAction-TestApp-{short_label}-{run_id}
+    Connection: TestConn-App-{short_label}-{run_id}
+    App:        TestApp-{short_label}-{run_id}
+  app_2_{short_label}.py       SYNTAX OK | Would create: ...
+
+Phase 4: Workflows (DRY RUN — scripts generated, not executed)
+  wf_1_{short_label}.py        SYNTAX OK | Would create: ...
+  wf_2_{short_label}.py        SYNTAX OK | Would create: ...
+
+Phase 5: Dashboard (DRY RUN)
+  dashboard.py                 SYNTAX OK | Would create:
+    Monitor:   TestMon-CPU-{run_id}
+    Dashboard: TestDash-{run_id}
+
+Phase 6: Service Catalog (DRY RUN)
+  service_catalog.py           SYNTAX OK | Would create:
+    Teams:    {detected teams}
+    Entities: {detected services}
+
+Phase 7: Cleanup               SKIPPED (dry run)
+
+========================================
+DRY RUN COMPLETE — 0 resources created
+Generated scripts: scripts/testing/generated/{run_id}/
+Run without --dry-run to create resources.
+========================================
+```

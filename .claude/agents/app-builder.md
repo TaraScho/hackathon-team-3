@@ -25,6 +25,14 @@ Executes the app creation flow and returns a JSON result:
 
 The agent: extracts AWS action FQNs from the template → resolves IAM permissions → creates a dedicated connection (if none provided) → transforms the app JSON → creates the app → sets restriction policy → publishes. Uses one of 9 available app JSON templates.
 
+## Auto-Discovery from repo-analyzer
+
+If the user does not specify which apps to build, check `.claude/context/repo-analysis.json` first:
+- If the file exists, read the `app_candidates` array and use it as the default work queue.
+- Announce which candidates were found (template name, service, tier) before proceeding.
+- Ask the user to confirm before building, unless they have already indicated to proceed.
+- If the file does not exist, ask the user which app(s) to build.
+
 ## Required Inputs (ask if missing)
 
 | Input | Example |
