@@ -36,6 +36,50 @@ When registering discovered services with the `software-catalog` skill, use thes
 
 ---
 
+## Output Format Derivation
+
+The `preferred_output_format` field in `repo-analysis.json` tells downstream skills whether to generate Terraform (`.tf`) or Python API scripts. It is derived from the detected IaC tooling in Step 1b.
+
+### Derivation Rules
+
+| Detected `iac_tooling` | `preferred_output_format` | Output Style |
+|---|---|---|
+| `Terraform` | `terraform` | `.tf` files using `datadog_*` Terraform provider resources |
+| `CloudFormation` | `python` | Python scripts calling Datadog REST API via `requests` |
+| `CDK TypeScript` | `python` | Python scripts calling Datadog REST API via `requests` |
+| `SAM` | `python` | Python scripts calling Datadog REST API via `requests` |
+| Unknown / not detected | `python` | Python scripts (safe default — no provider config needed) |
+
+### Mixed IaC Edge Cases
+
+When a repo contains multiple IaC frameworks:
+
+| Scenario | Resolution | Example |
+|---|---|---|
+| More `.tf` files than CFN/CDK templates | `terraform` | 15 `.tf` files, 3 CloudFormation YAML → `terraform` |
+| More CFN/CDK templates than `.tf` files | `python` | 2 `.tf` files, 10 CloudFormation YAML → `python` |
+| Equal count | `terraform` | 5 `.tf` files, 5 CloudFormation YAML → `terraform` (tiebreaker) |
+| Only CDK with no CFN | `python` | `cdk.json` present, TypeScript constructs → `python` |
+
+**Counting rules:**
+- Terraform: count files matching `**/*.tf` (exclude `.terraform/` directories)
+- CloudFormation: count files matching `**/*.yaml` and `**/*.json` inside `cloudformation/` directories, plus `template.yaml`/`template.json` at any level
+- CDK: count `.ts` files inside `lib/` directories where `cdk.json` exists at the project root
+
+### Downstream Impact
+
+All five product skills read `preferred_output_format` from `.claude/context/repo-analysis.json`:
+
+| Skill | `terraform` output | `python` output |
+|---|---|---|
+| action-connections | `datadog_action_connection` + `aws_iam_role` resources | `setup_action_connection.py` API script |
+| app-builder | `datadog_app_builder_app` with `file()` | `app_builder_helpers.py` create flow |
+| dashboards | `datadog_dashboard_json` with `file()` | `create_dashboard()` API script |
+| workflow-automation | `datadog_workflow_automation` with `spec_json` | `create_workflows.py` API script |
+| software-catalog | `datadog_service_definition` (v2.2 YAML schema) | `POST /api/v2/catalog/entity` (v3 JSON) |
+
+---
+
 ## Risk Pattern to Workflow Mapping
 
 | Pattern Found | Risk | Recommended Workflow | Action ID / Approach | Trigger Type |

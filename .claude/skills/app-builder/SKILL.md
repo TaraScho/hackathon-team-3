@@ -9,13 +9,9 @@ description: >
   "embed app in dashboard", "appDefinitions API", "publish app", "manage ECS tasks".
   Do NOT use for IAM trust setup (use action-connections), workflow specs
   (use workflow-automation), or dashboards without apps (use dashboards).
-compatibility: >
-  Requires Python 3.8+, requests, DD_API_KEY and DD_APP_KEY env vars
-  (app key scopes: apps_run, apps_write, connections_read, connections_resolve).
 metadata:
   author: hackathon-team-3
-  version: 1.1.0
-  tags: [app-builder, aws, internal-tools, terraform, ec2, ecs, s3]
+  tags: [app-builder, aws, internal-tools, ec2, ecs, s3]
   category: infrastructure
 ---
 
@@ -23,31 +19,55 @@ metadata:
 
 ## Overview
 
-Datadog App Builder lets you create low-code AWS management consoles that run inside Datadog dashboards. Apps are built from two core primitives:
+Datadog App Builder creates low-code AWS management consoles that run inside Datadog dashboards. Apps are built from two core primitives:
 
-- **Queries** -- calls to AWS actions (via an action connection) or Datadog APIs. Each query has an `actionId` (the FQN of the AWS operation), a `connectionId`, and `inputs`.
-- **Components** -- UI elements (tables, buttons, text inputs, dropdowns) arranged on a grid. Components reference queries for data and trigger queries on user interactions via `events`.
+- **Queries** — calls to AWS actions (via an action connection) or Datadog APIs. Each query has an `actionId` (FQN), a `connectionId`, and `inputs`.
+- **Components** — UI elements (tables, buttons, text inputs, dropdowns) on a grid. Components reference queries for data and trigger queries via `events`.
 
-Apps are defined as JSON files, transformed before API submission, then published to make them visible.
+Apps are defined as JSON files, transformed before API submission, then published.
 
 ### Dependency Diagram
 
 ```
-action-connections --> app-builder --> dashboards
+(action-connections → app-builder) × N apps → [N app UUIDs] → dashboards (composite)
 ```
 
-An action connection must exist before creating an app. The app's ID (returned after creation) is needed to embed the app in a dashboard widget.
+Each app gets its own dedicated action connection (1:1 — never shared).
+
+---
+
+## Doc Fetch URLs
+
+Before executing, fetch current API and product documentation:
+
+| Source | URL / Resource |
+|---|---|
+| Datadog API docs | `https://docs.datadoghq.com/api/latest/app-builder.md` |
+| Components reference | `https://docs.datadoghq.com/actions/app_builder/components.md` |
+| Queries reference | `https://docs.datadoghq.com/actions/app_builder/queries.md` |
+| Events reference | `https://docs.datadoghq.com/actions/app_builder/events.md` |
+| Expressions reference | `https://docs.datadoghq.com/actions/app_builder/expressions.md` |
+| Terraform provider | TF MCP → `datadog_app_builder_app` |
+
+---
+
+## Output Format Selection
+
+Read `preferred_output_format` from `.claude/context/repo-analysis.json`:
+
+| `preferred_output_format` | What happens |
+|---|---|
+| `terraform` | Claude queries Terraform MCP for provider docs + generates `.tf` modules in `datadog-resources/terraform/` |
+| `shell` | Claude executes `jq` + `curl` commands directly via Bash tool |
 
 ---
 
 ## When to Use
 
-- You want a UI inside Datadog to start/stop/reboot EC2 instances without leaving the platform
-- You need to bulk-create apps for an entire AWS environment from JSON templates
-- You are writing Terraform to manage apps as code alongside your infrastructure
-- You need to wire an existing app to a new connection (e.g., after rotating credentials)
-- You are embedding apps inside a dashboard and need to perform placeholder substitution
-- You want to understand the `transform_app_json_for_api()` transformation before submitting
+- You want a UI inside Datadog to manage AWS resources without leaving the platform
+- You need to bulk-create apps from JSON templates
+- You are embedding apps inside a dashboard
+- You need to wire an app to a new or rotated connection
 
 ---
 
@@ -55,7 +75,7 @@ An action connection must exist before creating an app. The app's ID (returned a
 
 | Requirement | Details |
 |---|---|
-| Action connection | Created via action-connections skill; or provide an existing UUID as the `connectionId` |
+| Action connection | Created via action-connections skill; UUID provided as `connectionId` |
 | App key scopes | `apps_run`, `apps_write`, `connections_read`, `connections_resolve` |
 | Org ID | Required for restriction policies; fetch from `GET /api/v2/current_user` |
 
@@ -63,7 +83,7 @@ An action connection must exist before creating an app. The app's ID (returned a
 
 ## Available App Templates
 
-Nine pre-built app definitions in `examples/python/app-definitions/`:
+Nine pre-built app definitions in `examples/app-definitions/`:
 
 | File | AWS Service | Key Operations |
 |---|---|---|
@@ -77,168 +97,83 @@ Nine pre-built app definitions in `examples/python/app-definitions/`:
 | `manage-step-functions.json` | Step Functions | list state machines, start/stop executions |
 | `aws-quick-review.json` | Multi-service | Read-only overview across EC2, RDS, S3 |
 
+All templates use `__CONNECTION_ID__` as the placeholder for connection UUIDs.
+
 ---
 
-## App JSON Structure
+## Core Workflow: Create, Restrict, Publish
 
-Each app definition has three top-level arrays:
+All API calls require headers: `DD-API-KEY`, `DD-APPLICATION-KEY`, `Content-Type: application/json`.
+
+### Step 1 — Transform the app JSON
+
+Before POSTing, transform the raw template JSON:
+
+1. **Replace `__CONNECTION_ID__`** with the real UUID in both `queries` and `connections` arrays
+2. **Remove the `handle` field** if present — the API rejects definitions that include `handle`
+3. **Reconstruct `connections` array** — deduplicate from queries
+4. **Wrap in API envelope**:
 
 ```json
 {
-  "queries": [
-    {
-      "name": "listInstances",
-      "actionId": "com.datadoghq.aws.ec2.describe_ec2_instances",
-      "connectionId": "REPLACE_WITH_CONNECTION_ID",
-      "fqn": "com.datadoghq.aws.ec2.describe_ec2_instances",
-      "inputs": { "region": "us-east-1", "filters": [] }
+  "data": {
+    "type": "appDefinitions",
+    "attributes": {
+      "name": "App Name",
+      "description": "App description",
+      "rootInstanceName": "grid0",
+      "components": [...],
+      "queries": [...],
+      "connections": [...],
+      "scripts": []
     }
-  ],
-  "components": [
-    {
-      "type": "grid",
-      "name": "instanceTable",
-      "properties": { "data": "{{ queries.listInstances.data.instances }}" },
-      "events": []
-    }
-  ],
-  "connections": [
-    { "connectionId": "REPLACE_WITH_CONNECTION_ID", "label": "AWS Connection" }
-  ]
-}
-```
-
----
-
-## JSON Transformation for API Submission
-
-Before POSTing to the API, raw app JSON must be transformed. The function `transform_app_json_for_api()` in `examples/python/app_builder_helpers.py` does the following:
-
-1. **Replace `connectionId` placeholders** -- swap `"REPLACE_WITH_CONNECTION_ID"` with the real UUID in both `queries` and `connections` arrays
-2. **Remove the `handle` field** -- the API rejects app definitions that include a `handle`
-3. **Reconstruct the `connections` array** -- deduplicate and rebuild from the queries list
-4. **Wrap in API envelope**:
-
-```python
-payload = {
-    "data": {
-        "type": "appDefinitions",
-        "attributes": {
-            "name": app_name,
-            "description": app_description,
-            "rootInstanceName": "grid0",
-            "components": transformed_components,
-            "queries": transformed_queries,
-            "connections": reconstructed_connections,
-            "scripts": []
-        }
-    }
-}
-```
-
----
-
-## API Workflow: Create, Restrict, Publish
-
-All endpoints require headers: `DD-API-KEY`, `DD-APPLICATION-KEY`, `Content-Type: application/json`.
-
-### Step 1 -- Create the app
-
-**`POST /api/v2/app-builder/apps`** with the transformed app JSON payload.
-
-Returns `201` with `data.id` (the app UUID). Save this for steps 2 and 3.
-
-```bash
-curl -X POST "https://api.datadoghq.com/api/v2/app-builder/apps" \
-  -H "DD-API-KEY: ${DD_API_KEY}" \
-  -H "DD-APPLICATION-KEY: ${DD_APP_KEY}" \
-  -H "Content-Type: application/json" \
-  -d @transformed-app.json
-```
-
-### Step 2 -- Set org restriction policy
-
-**`POST /api/v2/restriction_policy/app-builder-app:{app_id}`**
-
-The `id` field must be `app-builder-app:{app_id}`. Valid `relation` values: `viewer`, `editor`.
-
-### Step 3 -- Publish the app
-
-**`POST /api/v2/app-builder/apps/{app_id}/deployment`** with empty body. After this the app is visible in the catalog and embeddable in dashboards.
-
-See `references/api-reference.md` for full curl examples for all 3 steps.
-
-### Endpoint Summary
-
-| Method | Endpoint | Purpose |
-|--------|----------|---------|
-| POST | `/api/v2/app-builder/apps` | Create new app |
-| GET | `/api/v2/app-builder/apps` | List apps (paginated) |
-| GET | `/api/v2/app-builder/apps/{id}` | Get full app definition |
-| PATCH | `/api/v2/app-builder/apps/{id}` | Update app (new version) |
-| DELETE | `/api/v2/app-builder/apps/{id}` | Delete app |
-| POST | `/api/v2/app-builder/apps/{id}/deployment` | Publish app |
-| DELETE | `/api/v2/app-builder/apps/{id}/deployment` | Unpublish app |
-| POST | `/api/v2/restriction_policy/app-builder-app:{id}` | Set restriction policy |
-
----
-
-## Terraform Pattern
-
-The `datadog_app_builder_app` resource accepts an app JSON file and a map of query names to connection IDs:
-
-```hcl
-resource "datadog_app_builder_app" "ec2_management" {
-  name        = "Modify EC2 instance tags"
-  description = "View and manage EC2 instances with team-based filtering and tagging"
-  published   = true
-
-  app_json = file("${path.module}/ec2-management-app_definition.json")
-
-  action_query_names_to_connection_ids = {
-    for query in ["listTeams", "listInstances", "applyPRODTag", "applyDEVTag", "applyTESTTag"] :
-    query => datadog_action_connection.aws_ec2_appbuilder[0].id
   }
-
-  depends_on = [datadog_action_connection.aws_ec2_appbuilder]
 }
 ```
 
-The `app_json` file can use placeholder connection IDs -- Terraform substitutes the real IDs via `action_query_names_to_connection_ids`. See `examples/terraform/ec2-management-app.tf` for the full resource.
-
----
-
-## Dashboard Embedding Pattern
-
-When an app is used inside a dashboard widget, the dashboard JSON template contains a placeholder like `"APP_ID_PLACEHOLDER_EC2_MANAGEMENT"`. After creating the app, substitute the real ID:
-
-```python
-APP_NAME_TO_KEY = {
-    "ec2-management-console": "APP_ID_PLACEHOLDER_EC2_MANAGEMENT",
-    "manage-ecs-tasks":       "APP_ID_PLACEHOLDER_ECS_MANAGEMENT",
-    "explore-s3":             "APP_ID_PLACEHOLDER_S3_EXPLORER",
-}
-
-app_id_map = {
-    APP_NAME_TO_KEY[app_name]: app_id
-    for app_name, app_id in created_apps.items()
-}
-
-dashboard_json = load_template("techstories-dashboard-full.json")
-for placeholder, real_id in app_id_map.items():
-    dashboard_json = dashboard_json.replace(placeholder, real_id)
+Use `jq` to perform the transformation:
+```
+jq '{data: {type: "appDefinitions", attributes: {name: "App Name", description: "...", rootInstanceName: "grid0", components: .components, queries: (.queries | map(.connectionId = "REAL-UUID")), connections: (.connections | map(.connectionId = "REAL-UUID")), scripts: []}}}' template.json
 ```
 
-Embedded apps sync with dashboard template variables via `global?.dashboard?.templateVariables` and with the time frame via `global?.dashboard?.timeframe`. See `references/embedded-apps.md` for full details.
+### Step 2 — Create the app
+
+`POST /api/v2/app-builder/apps` with the transformed payload. Returns `201` with `data.id` (app UUID).
+
+### Step 3 — Set org restriction policy
+
+`POST /api/v2/restriction_policy/app-builder-app:{app_id}` with `editor` binding for org principal.
+
+### Step 4 — Publish the app
+
+`POST /api/v2/app-builder/apps/{app_id}/deployment` with empty body. After this the app is visible and embeddable.
 
 ---
 
-## Connection Setup with Least-Privilege Role
+## Gotchas & Patterns
 
-This skill delegates IAM role + connection creation to the action-connections skill.
-Extract action FQNs → resolve IAM permissions via `iam_permissions.py` → call
-`setup_datadog_action_connection(permissions=...)`. See the action-connections
-skill for the full 6-step flow and code examples.
+| Gotcha | Details |
+|---|---|
+| **Must remove `handle`** | API rejects app definitions containing a `handle` field — always strip it before submission |
+| **`appDefinitions` type** | The envelope `data.type` must be exactly `"appDefinitions"` (camelCase, plural) |
+| **FQN case-sensitivity** | Action FQNs in `actionId` must match exact case; wrong case gives generic 400 "invalid app definition" |
+| **Component state access** | Use `ui.{componentName}.value` for component state, `queries.{queryName}.data` for query results — mixing causes silent failures |
+| **Table selected row** | `selectedRow` (singular) returns object; `selectedRows` (plural) returns array — using wrong one causes runtime errors |
+| **FileUpload** | Returns `ui.{name}.files` (array) not `ui.{name}.value` |
+| **runOnPageLoad** | Default is `false`; set `true` only for read-only list queries, never for mutating queries |
+| **Polling minimum** | Minimum polling interval is 5000ms (5 seconds); lower values rejected silently |
+| **Modal placement** | Modals are opened via `openModal` reaction, not placed directly in grid children |
+| **DataTransform re-execution** | Automatically triggers whenever ANY referenced `queries.*` or `ui.*` changes — can cause cascading updates |
+| **Embedded app context** | `global.dashboard` is undefined when app runs standalone; always use optional chaining: `global?.dashboard?.templateVariables?.{varName}?.[0]` |
+| **Expression globals** | `_` (Lodash), `moment` (Moment.js), `JSON`, `Math`, `Array`, `Object`, `console` are all available in expressions |
+
+---
+
+## Dashboard Embedding
+
+When an app is used inside a dashboard widget, the dashboard JSON contains a placeholder like `__APP_ID_EC2_MANAGEMENT__`. After creating the app, substitute the real UUID using `jq` or string replacement before creating the dashboard.
+
+Embedded apps sync with dashboard template variables via `global?.dashboard?.templateVariables` and with the time frame via `global?.dashboard?.timeframe`.
 
 ---
 
@@ -250,32 +185,16 @@ When looking up available actions, FQNs, required inputs, or output schemas:
 2. Read the per-service file at `.claude/skills/shared/actions-by-service/{service}.md`
 3. Use the exact FQN in query `actionId` fields
 
-Common service files: `aws-ec2.md`, `aws-ecs.md`, `aws-iam.md`, `aws-s3.md`, `aws-lambda.md`, `aws-dynamodb.md`, `aws-sqs.md`, `aws-stepfunctions.md`, `aws-autoscaling.md`, `core-workflow.md`.
-
 ---
 
 ## Cross-Skill Notes
 
-- **Delegates to action-connections**: The action-connections skill is the single IAM authority. This skill extracts the needed permissions and delegates role + connection creation. You can also provide a pre-existing `connection_id` to skip auto-provisioning.
-- **Feeds into dashboards**: Each created app's ID must be collected to perform placeholder substitution in dashboard templates. The `dashboards` skill handles that embedding step.
-- Connection IDs flow through two paths: Terraform uses `action_query_names_to_connection_ids`; the Python API path uses `transform_app_json_for_api()`.
+- **Delegates to action-connections**: Connection creation is handled by the action-connections skill. Provide a pre-existing `connection_id` or let orchestration create one.
+- **Feeds into dashboards**: Each created app UUID must be collected for placeholder substitution in dashboard templates.
+- **Terraform path**: Uses `action_query_names_to_connection_ids` map to wire connections. `app_json = file(...)` accepts the template JSON directly.
 
 ---
 
-## Additional Resources
+## JSON Examples
 
-| Reference | Contents |
-|---|---|
-| `references/api-reference.md` | Full API contracts: request/response schemas, all 8 endpoints with curl examples, status codes, error shapes |
-| `references/components-and-events.md` | All 22 component types, 10 event types, 8 reaction types, component state accessors |
-| `references/queries-and-expressions.md` | Three query types, 9-step execution order, advanced options (debounce, polling, mocks), JS expression syntax |
-| `references/embedded-apps.md` | Template variable sync, time frame sync, input parameters, dashboard widget config, catalog self-service actions, notebook embedding |
-
----
-
-## Level 3 References
-
-- `examples/python/app_builder_helpers.py` -- `transform_app_json_for_api()`, `create_app_builder_app()`, `set_app_restriction_policy()`, `publish_app()`, `create_all_apps_from_directory()`
-- `examples/terraform/ec2-management-app.tf` -- `datadog_app_builder_app` with `action_query_names_to_connection_ids` for-expression
-- `examples/python/app-definitions/manage-ecs-tasks.json` -- ECS app showing fqn-based action queries and multi-step event wiring
-- `examples/python/app-definitions/ec2-management-console.json` -- EC2 app with table component, button triggers, and filter inputs
+Nine app definition templates in `examples/app-definitions/`. Each contains `queries`, `components`, and `connections` arrays with `__CONNECTION_ID__` placeholders. See "Available App Templates" table above for the mapping.

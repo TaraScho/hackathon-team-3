@@ -1,40 +1,64 @@
 # IaC Management with Datadog
 
-Manage, observe, and remediate infrastructure-as-code using Datadog as the control plane -- drift detection, security scanning, and automated remediation powered by App Builder, Workflow Automation, and dashboards-as-code.
+Manage, observe, and remediate infrastructure-as-code using Datadog as the control plane — App Builder, Workflow Automation, Software Catalog, and dashboards-as-code.
 
-## Project Goals
+## Architecture
 
-- **Hands-on IaC observability** -- prioritize practical experience building drift detection and security pipelines
-- **AI-native development** -- structure the codebase for AI agent effectiveness; use Claude Code, Cursor, etc. as primary dev partners
-- **Dogfooding Datadog end-to-end** -- dashboards, App Builder, Workflow Automation, monitors as both tools and subjects
-- **Boundary exploration** -- push into novel territory; document where it works and where it breaks
-- **Failure modes as outcomes** -- treat friction, dead ends, and learnings as first-class deliverables
+Skills-based architecture where each Claude Code skill is a self-contained playbook for creating Datadog resources. No Python scripts, no sub-agent configs — skills teach Claude to execute `curl`/`aws cli` directly or generate Terraform via MCP.
 
-## Core Workflows
+### Skill Structure
 
-### IaC Drift Detection
+```
+skill-name/
+├── SKILL.md              # Playbook + gotchas + doc fetch URLs
+└── examples/             # JSON specs (where applicable)
+    └── *.json
+```
 
-Detect configuration drift between declared IaC and actual cloud state, surface findings in Datadog dashboards, and remediate via App Builder apps and Workflow Automation.
+### Skills
 
-**Datadog features:** Dashboards, App Builder, Workflow Automation, Action Connections
+| Skill | Purpose |
+|---|---|
+| `repo-analyzer` | Scan IaC repos → tiered Datadog resource recommendations |
+| `action-connections` | Create Datadog Action Connections (AWS IAM trust) |
+| `app-builder` | Deploy App Builder apps (9 AWS management templates) |
+| `workflow-automation` | Create automated remediation workflows |
+| `dashboards` | Create dashboards (7 templates, composite embedding) |
+| `software-catalog` | Register teams + service entities in Software Catalog |
+| `onboard-repository` | End-to-end orchestration (Phase 1→2→3) |
+| `onboard-repository-dry-run` | Conceptual preview of what onboarding would create |
+| `action-catalog-extractor` | Extract action definitions from dd-source |
 
-### IaC Security
+### Output Formats
 
-Identify security misconfigurations in IaC templates and running infrastructure, surface findings in dashboards, and trigger automated remediation workflows.
+| `preferred_output_format` | What happens |
+|---|---|
+| `terraform` | Claude queries Terraform MCP server for provider docs + generates `.tf` modules |
+| `shell` | Claude executes `curl` + `aws cli` commands directly via Bash |
 
-**Datadog features:** Dashboards, Workflow Automation, Monitors
+### External Doc Sources
 
-### Monitoring Assets as Code
+- **Datadog docs** via `.md` URLs — fetched at runtime by Claude (API refs, product pages)
+- **Terraform MCP server** — provides Datadog provider resource docs via `.mcp.json`
 
-Deploy Datadog monitors, dashboards, App Builder apps, and workflows via Terraform -- treating observability configuration as version-controlled infrastructure.
+## Orchestration Model
 
-**Datadog features:** Terraform provider (`datadog_dashboard_json`, `datadog_monitor`, `datadog_workflow_automation`)
+```
+[Phase 1] repo-analyzer → recommendations + repo-analysis.json
+[Phase 2] parallel fan-out:
+  ├─ software-catalog (teams → entities)
+  ├─ (action-connections → app-builder) × N apps
+  ├─ (action-connections → workflow-automation) × M workflows
+[Phase 3] composite dashboard (embeds all app + workflow UUIDs)
+```
 
-### Remediation from Datadog
+## Test Projects
 
-Use dashboards as entry points into App Builder apps and Workflow Automation for one-click drift fixes and security remediation.
-
-**Datadog features:** Dashboards (with App Builder widget links), App Builder, Workflow Automation, Action Connections
+| Directory | Contents |
+|---|---|
+| `test-projects/stickerlandia/` | Microservices CloudFormation templates |
+| `test-projects/cfn-simple/` | Simple CloudFormation stack |
+| `test-projects/tf-simple/` | Simple Terraform configuration |
 
 ## Tech Stack
 
@@ -42,11 +66,10 @@ Use dashboards as entry points into App Builder apps and Workflow Automation for
 |---|---|
 | Terraform | IaC for Datadog resources and AWS infrastructure |
 | CloudFormation | AWS-native IaC templates |
-| Datadog Dashboards | Observability and entry points for remediation |
-| Datadog Monitors | Alerting on drift and security findings |
-| Datadog App Builder | Interactive remediation UIs |
+| Datadog App Builder | Interactive AWS management UIs |
 | Datadog Workflow Automation | Automated remediation pipelines |
+| Datadog Dashboards | Observability + embedded app widgets |
+| Datadog Software Catalog | Service registry + dependency mapping |
 | Datadog Action Connections | Secure AWS credential bridging (assume-role) |
-| AWS | Cloud infrastructure target |
-| Stickerlandia | Microservices demo application (target workload for testing and development) |
-| Claude Code / Cursor | AI-assisted development |
+| Terraform MCP Server | Runtime provider docs for Claude |
+| Claude Code | AI-assisted development + execution |

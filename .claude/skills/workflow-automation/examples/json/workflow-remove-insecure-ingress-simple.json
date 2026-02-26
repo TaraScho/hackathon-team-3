@@ -61,7 +61,7 @@
           "env": "default",
           "connections": [
             {
-              "connectionId": "22cc0d88-b525-4e42-a506-6a043ae643c3",
+              "connectionId": "__CONNECTION_ID__",
               "label": "INTEGRATION_AWS"
             }
           ]

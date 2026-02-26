@@ -3,19 +3,15 @@ name: workflow-automation
 description: >
   Creates Datadog Workflow Automation workflows — multi-step automated remediation
   triggered by security signals, monitors, or manual execution. Covers spec
-  authoring (steps, triggers, connectionEnvs), Terraform, and common patterns:
+  authoring (steps, triggers, connectionEnvs) and common patterns:
   IAM disable user, ECS rollback, revoke insecure ingress, data transforms.
   Trigger phrases: "workflow automation", "automated remediation", "security trigger",
   "monitor trigger", "ECS rollback", "connectionEnvs", "workflow spec JSON".
   Do NOT use for IAM connections (use action-connections), app UIs
   (use app-builder), or dashboards (use dashboards).
-compatibility: >
-  Requires Python 3.8+, requests, DD_API_KEY and DD_APP_KEY env vars
-  (app key scopes: workflows_read, workflows_write, workflows_run).
 metadata:
   author: hackathon-team-3
-  version: 1.1.0
-  tags: [workflow-automation, security, remediation, iam, ecs, ec2, terraform, aws]
+  tags: [workflow-automation, security, remediation, iam, ecs, ec2, aws]
   category: infrastructure
 ---
 
@@ -25,49 +21,48 @@ metadata:
 
 Datadog Workflow Automation runs multi-step runbooks in response to security signals, monitor alerts, or manual triggers. Each workflow is a directed graph of `steps`, each calling an AWS action (or Datadog API) via an action connection.
 
-### Core spec structure
-
-```json
-{
-  "steps": [...],
-  "triggers": [...],
-  "connectionEnvs": [...],
-  "inputSchema": {...}
-}
-```
-
-- **`steps`** — ordered actions; each has a `name`, `actionId`, `connectionLabel`, `parameters`, and optional `outboundEdges`
-- **`triggers`** — what starts the workflow: `securityTrigger`, `monitorTrigger`, `workflowTrigger`, or `apiTrigger`
-- **`connectionEnvs`** — maps a label (e.g., `INTEGRATION_AWS`) to a real connection ID per environment
-- **`inputSchema`** — parameters the caller supplies at runtime (for manual/API triggers)
-
-### Variable interpolation syntax
-
-| Context | Syntax | Example |
-|---|---|---|
-| Step output | `{{ Steps.StepName.fieldName }}` | `{{ Steps.Describe_task_definition.taskDefinition.cpu }}` |
-| Security trigger source | `{{ Source.securityFinding.resource }}` | IAM username from a SIEM alert |
-| Security trigger resource config | `{{ Source.securityFinding.resourceConfiguration.group_id }}` | EC2 security group ID |
-| Manual/API trigger param | `{{ Trigger.param_name }}` | `{{ Trigger.service_name }}` |
-| Current loop value | `{{ Current.Value }}` | Inside a `forLoop` step |
-
 ### Dependency Diagram
 
 ```
-action-connections ──► workflow-automation
+(action-connections → workflow-automation) × M workflows
 ```
 
-A working action connection is required before any workflow can execute AWS steps.
+Each workflow gets its own dedicated action connection (1:1 — never shared).
+
+---
+
+## Doc Fetch URLs
+
+Before executing, fetch current API and product documentation:
+
+| Source | URL / Resource |
+|---|---|
+| Datadog API docs | `https://docs.datadoghq.com/api/latest/workflow-automation.md` |
+| Triggers reference | `https://docs.datadoghq.com/actions/workflows/triggers.md` |
+| Build workflows | `https://docs.datadoghq.com/actions/workflows/build.md` |
+| Actions reference | `https://docs.datadoghq.com/actions/workflows/actions.md` |
+| Expressions | `https://docs.datadoghq.com/actions/workflows/expressions.md` |
+| Terraform provider | TF MCP → `datadog_workflow_automation` |
+
+---
+
+## Output Format Selection
+
+Read `preferred_output_format` from `.claude/context/repo-analysis.json`:
+
+| `preferred_output_format` | What happens |
+|---|---|
+| `terraform` | Claude queries Terraform MCP for provider docs + generates `.tf` modules in `datadog-resources/terraform/` |
+| `shell` | Claude executes `curl` commands directly via Bash tool |
 
 ---
 
 ## When to Use
 
-- You need automated incident response that acts on AWS resources when Datadog detects a security finding
+- You need automated incident response for AWS resources triggered by Datadog findings
 - You want to automate operational runbooks (ECS rollbacks, tag enforcement, scorecard updates)
-- You are building IaC-driven provisioning that chains multiple AWS API calls
-- You want a monitor to trigger remediation automatically (monitorTrigger)
-- You need to write a Terraform module that includes both the connection and the workflow
+- You need a monitor to trigger remediation automatically
+- You want to chain multiple AWS API calls in a workflow
 
 ---
 
@@ -75,24 +70,86 @@ A working action connection is required before any workflow can execute AWS step
 
 | Requirement | Details |
 |---|---|
-| Action connection | Created automatically via action-connections skill if not provided; or provide an existing UUID in `connectionEnvs` |
+| Action connection | Created via action-connections skill; UUID goes in `connectionEnvs` |
 | App key scopes | `workflows_read`, `workflows_write`, `workflows_run`, `connections_read`, `connections_resolve` |
-| IAM role permissions | Auto-scoped when using least-privilege setup; the role gets exactly the permissions needed by the workflow steps |
 
-**Note:** The action-connections skill handles IAM role creation and permission scoping. You do not need to create IAM roles manually.
+---
+
+## Core Workflow: Submit a Workflow Spec
+
+All API calls require headers: `DD-API-KEY`, `DD-APPLICATION-KEY`, `Content-Type: application/json`.
+
+### Workflow spec structure
+
+```json
+{
+  "name": "Workflow Name",
+  "spec": {
+    "triggers": [...],
+    "steps": [...],
+    "connectionEnvs": [...],
+    "inputSchema": {...}
+  }
+}
+```
+
+- **`steps`** — ordered actions; each has `name`, `actionId`, `connectionLabel`, `parameters`, optional `outboundEdges`
+- **`triggers`** — what starts the workflow: `securityTrigger`, `monitorTrigger`, `workflowTrigger`, `apiTrigger`, etc.
+- **`connectionEnvs`** — maps a label to a real connection ID per environment
+- **`inputSchema`** — parameters the caller supplies at runtime
+
+### Step 1 — Prepare the spec
+
+Load a template from `examples/json/`, replace `__CONNECTION_ID__` with the real UUID in `connectionEnvs[].connections[].connectionId`.
+
+### Step 2 — Create the workflow
+
+`POST /api/v2/workflows` with the spec wrapped in API envelope:
+
+```json
+{
+  "data": {
+    "type": "workflows",
+    "attributes": {
+      "name": "Workflow Name",
+      "description": "...",
+      "published": true,
+      "spec": { ...spec from template... }
+    }
+  }
+}
+```
+
+Note: `data.type` must be `"workflows"` (plural).
+
+### Step 3 — Verify
+
+Check response for `data.id` (workflow UUID). Save for dashboard embedding.
+
+---
+
+## Variable Interpolation
+
+| Context | Syntax | Example |
+|---|---|---|
+| Step output | `{{ Steps.StepName.fieldName }}` | `{{ Steps.Describe_task_definition.taskDefinition.cpu }}` |
+| Security trigger | `{{ Source.securityFinding.resource }}` | IAM username from SIEM alert |
+| Monitor trigger | `{{ Source.monitor.* }}` | Monitor alert data |
+| Manual/API trigger | `{{ Trigger.param_name }}` | `{{ Trigger.service_name }}` |
+| Loop value | `{{ Current.Value }}` | Inside a `forLoop` step |
 
 ---
 
 ## Trigger Types
 
-| Trigger key | When to use | Source variables available |
-|---|---|---|
-| `securityTrigger` | Datadog Cloud SIEM signal fires | `{{ Source.securityFinding.* }}` |
-| `monitorTrigger` | Datadog monitor alert | `{{ Source.monitor.* }}` |
-| `workflowTrigger` | Another workflow calls this one | `{{ Trigger.* }}` (caller params) |
-| `apiTrigger` | Manual execution or API call | `{{ Trigger.* }}` (inputSchema params) |
+| Trigger key | When to use |
+|---|---|
+| `securityTrigger` | Cloud SIEM signal fires |
+| `monitorTrigger` | Monitor alert |
+| `apiTrigger` | Manual execution or API call |
+| `workflowTrigger` | Another workflow calls this one |
 
-A workflow spec can include multiple trigger blocks (e.g., both `apiTrigger` and `monitorTrigger`). For all 11 trigger types with full configuration, see `references/triggers.md`.
+A workflow spec can include multiple trigger blocks. Workflows with `apiTrigger` can be triggered from dashboard `run_workflow` widgets.
 
 ---
 
@@ -101,158 +158,62 @@ A workflow spec can include multiple trigger blocks (e.g., both `apiTrigger` and
 | Action ID | Service | Operation |
 |---|---|---|
 | `com.datadoghq.aws.iam.disable_user` | IAM | Disable IAM user login |
-| `com.datadoghq.aws.ec2.revoke_security_group_ingress` | EC2 | Remove security group ingress rules |
+| `com.datadoghq.aws.ec2.revoke_security_group_ingress` | EC2 | Remove SG ingress rules |
 | `com.datadoghq.aws.ec2.modify_instance_metadata_options` | EC2 | Enforce IMDSv2 |
 | `com.datadoghq.aws.ecs.describeTaskDefinition` | ECS | Get task definition details |
-| `com.datadoghq.aws.ecs.registerTaskDefinition` | ECS | Register new task definition revision |
-| `com.datadoghq.aws.ecs.updateEcsService` | ECS | Update service to new task definition |
-| `com.datadoghq.datatransformation.func` | Transform | Run a JavaScript function on step outputs |
+| `com.datadoghq.aws.ecs.registerTaskDefinition` | ECS | Register new revision |
+| `com.datadoghq.aws.ecs.updateEcsService` | ECS | Update service |
+| `com.datadoghq.datatransformation.func` | Transform | Run JavaScript function |
 | `com.datadoghq.core.forLoop` | Core | Iterate over a list |
 | `com.datadoghq.core.if` | Core | Conditional branch |
-| `com.datadoghq.dd.cases.createCase` | Datadog | Create a Datadog case/incident |
+| `com.datadoghq.dd.cases.createCase` | Datadog | Create a case/incident |
 
 ---
 
-## Workflow Spec JSON Skeleton
+## Gotchas & Patterns
 
-```json
-{
-  "handle": "my-workflow-handle",
-  "triggers": [
-    {
-      "securityTrigger": {},
-      "startStepNames": ["First_step"]
-    }
-  ],
-  "connectionEnvs": [
-    {
-      "env": "default",
-      "connections": [
-        {
-          "connectionId": "<uuid>",
-          "label": "INTEGRATION_AWS"
-        }
-      ]
-    }
-  ],
-  "inputSchema": {
-    "parameters": [
-      { "name": "service_name", "type": "STRING" }
-    ]
-  },
-  "steps": [
-    {
-      "name": "First_step",
-      "actionId": "com.datadoghq.aws.iam.disable_user",
-      "connectionLabel": "INTEGRATION_AWS",
-      "parameters": [
-        {"name": "userName", "value": "{{ Source.securityFinding.resource }}"}
-      ],
-      "outboundEdges": [
-        {"nextStepName": "Second_step", "branchName": "main"}
-      ]
-    }
-  ]
-}
-```
-
-Key rules: `connectionLabel` in each step must exactly match (case-sensitive) a `label` in `connectionEnvs`. Step names must be unique within the workflow.
-
----
-
-## ECS Rollback Walk-Through
-
-The 4-step chain in `examples/ECS-Rollback-Leaderboard.json` illustrates step chaining and data transformation:
-
-1. **Describe_task_definition** — `describeTaskDefinition` with `{{ Trigger.service_name }}`
-2. **Transform_image_tag** — JavaScript `datatransformation.func` replaces the image tag with `{{ Trigger.image_tag }}`
-3. **Register_task_definition** — `registerTaskDefinition` using transformed containerDefinitions from Step 2 and metadata from Step 1
-4. **Update_ECS_service** — `updateEcsService` with the new task definition ARN and `forceNewDeployment = true`
-
-The `outboundEdges` field chains steps: Describe -> Transform -> Register -> Update.
-
----
-
-## Terraform Pattern
-
-```hcl
-resource "datadog_workflow_automation" "remove_insecure_ingress" {
-  name        = "Remove insecure ingress rules"
-  description = "Removes security group rules exposing ports to the internet"
-  tags        = ["security", "remediation", "ec2"]
-  published   = true
-  depends_on  = [datadog_action_connection.aws_ec2_workflow]
-
-  spec_json = jsonencode({
-    triggers = [{
-      startStepNames = ["Revoke_security_group_ingress"]
-      securityTrigger = {}
-    }]
-    steps = [{
-      name            = "Revoke_security_group_ingress"
-      actionId        = "com.datadoghq.aws.ec2.revoke_security_group_ingress"
-      connectionLabel = "WORKFLOW_EC2"
-      parameters = [
-        {name = "region",   value = var.aws_region},
-        {name = "groupId",  value = "{{ Source.securityFinding.resourceConfiguration.group_id }}"}
-      ]
-    }]
-    connectionEnvs = [{
-      env = "default"
-      connections = [{
-        connectionId = datadog_action_connection.aws_ec2_workflow[0].id
-        label        = "WORKFLOW_EC2"
-      }]
-    }]
-  })
-}
-```
-
-For workflows with many steps, store the spec as a separate JSON file and use `templatefile()`:
-
-```hcl
-spec_json = templatefile("${path.module}/my-workflow-spec.json", {
-  connection_id = datadog_action_connection.aws_workflow.id
-  aws_region    = var.aws_region
-})
-```
-
-Always add `depends_on` for the action connection to ensure ordering. See `examples/terraform/automating-meaningful-actions-workflows.tf` for forLoop, if-step, and scorecard update patterns.
-
----
-
-## Connection Setup with Least-Privilege Role
-
-This skill delegates IAM role + connection creation to the action-connections skill.
-Extract action FQNs → resolve IAM permissions via `iam_permissions.py` → call
-`setup_datadog_action_connection(permissions=...)`. See the action-connections
-skill for the full 6-step flow and code examples.
+| Gotcha | Details |
+|---|---|
+| **`connectionLabel` case-sensitivity** | Must **exactly match** (case-sensitive) the `label` in `connectionEnvs[].connections[].label` |
+| **`data.type` is plural** | Must be `"workflows"` not `"workflow"` |
+| **If branch names** | Must be exactly `"true"` and `"false"` (strings, lowercase), NOT boolean values |
+| **Loop branch names** | Must be exactly `"loop"` and `"after_loop"` |
+| **Error branch name** | Must be exactly `"error"` (lowercase) |
+| **No list API by name** | Cannot query workflows by name or handle — must track ID externally |
+| **409 = handle exists** | Workflow handle already exists; requires external ID lookup to update |
+| **Monitor trigger syntax** | `@workflow-My-Workflow-Name` in monitor message body; params: `@workflow-Name(param="value")` |
+| **Rate limits** | Without rate limiting on triggers, every alert fires the workflow — set `{ "count": 1, "interval": "3600s" }` |
+| **JavaScript steps** | Must define `function main(args)` and return value; max 10 KB script size |
+| **Python steps** | Must define `def main(ctx)` and return serializable value; Python 3.12.8 runtime |
+| **Loop iteration limit** | 2,000 per loop; automatic silent exit if exceeded |
+| **Max steps per workflow** | 150 |
+| **Workflow execution timeout** | 7 days maximum |
+| **Security trigger resources** | `resourceConfiguration.*` fields vary by AWS resource type — verify field availability |
+| **Scheduled trigger** | Executes under service account context; no `inputSchema` parameters available |
 
 ---
 
 ## Cross-Skill Notes
 
-- **Delegates to action-connections**: The action-connections skill is the single IAM authority. This skill extracts the needed permissions and delegates role + connection creation. You can also provide a pre-existing `connection_id` to skip auto-provisioning.
-- **Monitor IDs from dashboards**: To use a `monitorTrigger`, you need the monitor ID. Create monitors in the dashboards step and pass the ID here.
-- **Workflow outputs can update service catalog**: Use `com.datadoghq.dd.service_catalog.updateScorecardRuleOutcome` to mark pass/fail on scorecard rules after remediation completes — closing the IaC -> detect -> remediate -> score loop.
+- **Delegates to action-connections**: Connection creation is handled by the action-connections skill.
+- **Monitor IDs from dashboards**: Monitors created by the dashboards skill can be used as `monitorTrigger` sources.
+- **Dashboard embedding**: Include `apiTrigger` alongside primary trigger to enable dashboard `run_workflow` widgets.
+- **Scorecard updates**: Use `com.datadoghq.dd.service_catalog.updateScorecardRuleOutcome` to mark pass/fail after remediation.
 
 ---
 
-## Additional Resources
+## JSON Examples
 
-| Reference | Contents |
+Seven workflow spec templates in `examples/json/`:
+
+| File | Pattern |
 |---|---|
-| `references/api-reference.md` | Full Workflow REST API contracts: all 8 endpoints, request/response schemas, curl examples, error shapes, idempotent create-or-update pattern |
-| `references/triggers.md` | All 11 trigger types with full configuration: manual, monitor, dashboard, incident, security, catalog, GitHub, Slack, API, scheduled, workflow-to-workflow |
-| `references/flow-control-and-expressions.md` | Flow actions (If, Switch, Sleep, For Loop, While Loop), error handling (retries, error paths, wait-until), expressions (JavaScript with Lodash, Python 3.12.8), custom variables, output parameters |
-| `references/operations.md` | Publishing/versioning, rate limits and throttling, billing model, notifications, saved actions, audit trail, monitoring metrics, RBAC, operational best practices |
+| `AWS-IAM-Disable-User.json` | Single-step security trigger — disable IAM user |
+| `AWS-IAM-Revoke-Permissions.json` | Revoke IAM permissions on security finding |
+| `AWS-EC2-Require-IMDS-v2_spec.json` | Enforce IMDSv2 on EC2 instances |
+| `ECS-Rollback-Leaderboard.json` | 4-step ECS rollback with data transform |
+| `workflow-remove-insecure-ingress.json` | Multi-step EC2 security group remediation |
+| `workflow-remove-insecure-ingress-simple.json` | Simplified ingress revocation |
+| `cloud-siem-waf-workflow-spec.json` | Cloud SIEM WAF workflow |
 
----
-
-## Level 3 References
-
-- `examples/create_workflows.py` — ECS rollback (4-step + data transform), IAM attach policy, connection lookup by name, idempotent create-or-update
-- `examples/terraform/automating-meaningful-actions-workflows.tf` — `datadog_workflow_automation` with forLoop, if-step, data transform, and scorecard update steps
-- `examples/AWS-IAM-Disable-User.json` — minimal single-step `securityTrigger` workflow (simplest possible reference)
-- `examples/json/workflow-remove-insecure-ingress.json` — multi-step workflow with conditional branch and EC2 security group remediation
-- `examples/AWS_ACTION_CONNECTION_SETUP.md` — connection-to-workflow dependency architecture and setup sequence
+All templates use `__CONNECTION_ID__` as the connection placeholder (except `cloud-siem-waf-workflow-spec.json` which uses `${connection_id}` for Terraform templatefile compatibility). All bare specs have been wrapped in `{ "name": "...", "spec": { ... } }` format.

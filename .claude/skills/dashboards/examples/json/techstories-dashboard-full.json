@@ -68,7 +68,7 @@
                 "title": "TechStories Resource Overview",
                 "title_size": "13",
                 "title_align": "left",
-                "app_id": "AWS_QUICK_REVIEW_APP_ID_PLACEHOLDER"
+                "app_id": "__APP_ID_AWS_QUICK_REVIEW__"
             },
             "layout": {
                 "x": 0,
@@ -141,7 +141,7 @@
                             "title": "Manage ECS Tasks",
                             "title_size": "13",
                             "title_align": "left",
-                            "app_id": "ECS_MANAGER_APP_ID_PLACEHOLDER"
+                            "app_id": "__APP_ID_ECS_MANAGER__"
                         },
                         "layout": {
                             "x": 6,
@@ -361,7 +361,7 @@
                             "title": "EC2 Management Console",
                             "title_size": "13",
                             "title_align": "left",
-                            "app_id": "EC2_MANAGER_APP_ID_PLACEHOLDER"
+                            "app_id": "__APP_ID_EC2_MANAGER__"
                         },
                         "layout": {
                             "x": 0,
@@ -815,7 +815,7 @@
                             "title": "Lambda Function Manager",
                             "title_size": "13",
                             "title_align": "left",
-                            "app_id": "LAMBDA_MANAGER_APP_ID_PLACEHOLDER"
+                            "app_id": "__APP_ID_LAMBDA_MANAGER__"
                         },
                         "layout": {
                             "x": 4,
@@ -864,7 +864,7 @@
                             "title": "Manage DynamoDB",
                             "title_size": "13",
                             "title_align": "left",
-                            "app_id": "DYNAMODB_MANAGER_APP_ID_PLACEHOLDER"
+                            "app_id": "__APP_ID_DYNAMODB_MANAGER__"
                         },
                         "layout": {
                             "x": 4,
@@ -1236,7 +1236,7 @@
                             "title": "Manage Step Functions",
                             "title_size": "13",
                             "title_align": "left",
-                            "app_id": "STEP_FUNCTIONS_MANAGER_APP_ID_PLACEHOLDER"
+                            "app_id": "__APP_ID_STEP_FUNCTIONS_MANAGER__"
                         },
                         "layout": {
                             "x": 4,
@@ -1387,7 +1387,7 @@
                             "title": "Manage SQS Queues",
                             "title_size": "13",
                             "title_align": "left",
-                            "app_id": "SQS_MANAGER_APP_ID_PLACEHOLDER"
+                            "app_id": "__APP_ID_SQS_MANAGER__"
                         },
                         "layout": {
                             "x": 0,
@@ -1472,7 +1472,7 @@
                             "title": "Explore S3 Files",
                             "title_size": "13",
                             "title_align": "left",
-                            "app_id": "S3_EXPLORER_APP_ID_PLACEHOLDER"
+                            "app_id": "__APP_ID_S3_EXPLORER__"
                         },
                         "layout": {
                             "x": 0,

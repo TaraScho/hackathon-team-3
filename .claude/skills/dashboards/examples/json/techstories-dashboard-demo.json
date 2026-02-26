@@ -41,7 +41,7 @@
             "id": 8293847561029384,
             "definition": {
                 "type": "embedded_app",
-                "app_id": "DYNAMODB_MANAGER_APP_ID_PLACEHOLDER"
+                "app_id": "__APP_ID_DYNAMODB_MANAGER__"
             },
             "layout": {
                 "x": 0,
@@ -54,7 +54,7 @@
             "id": 8293847561029385,
             "definition": {
                 "type": "embedded_app",
-                "app_id": "ECS_MANAGER_APP_ID_PLACEHOLDER"
+                "app_id": "__APP_ID_ECS_MANAGER__"
             },
             "layout": {
                 "x": 0,
@@ -67,7 +67,7 @@
             "id": 8293847561029386,
             "definition": {
                 "type": "embedded_app",
-                "app_id": "SQS_MANAGER_APP_ID_PLACEHOLDER"
+                "app_id": "__APP_ID_SQS_MANAGER__"
             },
             "layout": {
                 "x": 0,

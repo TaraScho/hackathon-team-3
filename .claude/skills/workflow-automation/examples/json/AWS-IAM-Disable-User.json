@@ -1,0 +1,43 @@
+{
+    "name": "AWS IAM Disable User",
+    "spec": {
+        "steps": [
+            {
+                "actionId": "com.datadoghq.aws.iam.disable_user",
+                "connectionLabel": "INTEGRATION_AWS",
+                "display": {
+                    "bounds": {
+                        "y": 283
+                    }
+                },
+                "name": "Disable_user",
+                "parameters": [
+                    {
+                        "name": "userName",
+                        "value": "{{ Source.securityFinding.resource }}"
+                    }
+                ]
+            }
+        ],
+        "connectionEnvs": [
+            {
+                "connections": [
+                    {
+                        "connectionId": "__CONNECTION_ID__",
+                        "label": "INTEGRATION_AWS"
+                    }
+                ],
+                "env": "default"
+            }
+        ],
+        "handle": "AWS-IAM-Disable-User",
+        "triggers": [
+            {
+                "securityTrigger": {},
+                "startStepNames": [
+                    "Disable_user"
+                ]
+            }
+        ]
+    }
+}

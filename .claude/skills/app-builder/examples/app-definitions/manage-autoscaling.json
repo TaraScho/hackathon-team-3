@@ -1,0 +1,483 @@
+{
+    "queries": [
+      {
+        "id": "718111a5-7149-47c0-8bfe-2a182d145963",
+        "name": "describeAutoScalingGroup0",
+        "type": "action",
+        "properties": {
+          "onlyTriggerManually": true,
+          "spec": {
+            "connectionId": "__CONNECTION_ID__",
+            "fqn": "com.datadoghq.aws.autoscaling.describe_auto_scaling_group",
+            "inputs": {
+              "autoScalingGroupName": "${groupName.value}",
+              "region": "${region.value}"
+            }
+          }
+        }
+      },
+      {
+        "id": "cfa01c86-4728-49c7-a7c6-3f8e31c148a2",
+        "name": "setDesiredCapacity0",
+        "type": "action",
+        "properties": {
+          "onlyTriggerManually": true,
+          "requiresConfirmation": true,
+          "spec": {
+            "connectionId": "__CONNECTION_ID__",
+            "fqn": "com.datadoghq.aws.autoscaling.setDesiredCapacity",
+            "inputs": {
+              "autoScalingGroupName": "${groupName.value}",
+              "desiredCapacity": "${dataTransform0?.outputs}",
+              "region": "${region.value}"
+            }
+          }
+        },
+        "events": [
+          {
+            "name": "executionFinished",
+            "queryName": "describeAutoScalingGroup0",
+            "type": "triggerQuery"
+          }
+        ]
+      },
+      {
+        "id": "92be5897-2340-4a15-b3bb-b4bc6d594c05",
+        "name": "dataTransform0",
+        "type": "dataTransform",
+        "properties": {
+          "outputs": "${(() => {let desiredCapacity = describeAutoScalingGroup0?.outputs?.autoScalingGroup?.DesiredCapacity;\n\nif (action.value === 'UP') {\n    desiredCapacity += 1;\n} else if (action.value === 'DOWN') {\n    if (desiredCapacity > 0) {\n        desiredCapacity -= 1;\n    }\n} else if (action.value === 'MAX') {\n    desiredCapacity = describeAutoScalingGroup0?.outputs?.autoScalingGroup?.MaxSize;\n} else if (action.value === 'MIN') {\n    desiredCapacity = describeAutoScalingGroup0?.outputs?.autoScalingGroup?.MinSize;\n}\n\nreturn desiredCapacity;})()}"
+        }
+      }
+    ],
+    "id": "6b0317e2-930e-4fad-bca9-0a98ba422045",
+    "components": [
+      {
+        "events": [],
+        "name": "grid0",
+        "properties": {
+          "children": [
+            {
+              "events": [],
+              "name": "gridCell0",
+              "properties": {
+                "children": [
+                  {
+                    "events": [],
+                    "name": "groupName",
+                    "properties": {
+                      "defaultValue": "",
+                      "isDisabled": false,
+                      "isVisible": "",
+                      "label": "Autoscaling Group Name",
+                      "placeholder": ""
+                    },
+                    "type": "textInput"
+                  }
+                ],
+                "isVisible": "true",
+                "layout": {
+                  "default": {
+                    "height": 7,
+                    "width": 4,
+                    "x": 5,
+                    "y": 31
+                  }
+                }
+              },
+              "type": "gridCell"
+            },
+            {
+              "events": [],
+              "name": "gridCell1",
+              "properties": {
+                "children": [
+                  {
+                    "events": [],
+                    "name": "region",
+                    "properties": {
+                      "defaultValue": "",
+                      "isDisabled": false,
+                      "isMultiselect": "false",
+                      "isVisible": true,
+                      "label": "Region",
+                      "options": "[\n    {\n        \"label\": \"US East (N. Virginia)\",\n        \"value\": \"us-east-1\"\n    },\n    {\n        \"label\": \"US East (Ohio)\",\n        \"value\": \"us-east-2\"\n    },\n    {\n        \"label\": \"US West (N. California)\",\n        \"value\": \"us-west-1\"\n    },\n    {\n        \"label\": \"US West (Oregon)\",\n        \"value\": \"us-west-2\"\n    },\n    {\n        \"label\": \"Africa (Cape Town)\",\n        \"value\": \"af-south-1\"\n    },\n    {\n        \"label\": \"Asia Pacific (Hong Kong)\",\n        \"value\": \"ap-east-1\"\n    },\n    {\n        \"label\": \"Asia Pacific (Hyderabad)\",\n        \"value\": \"ap-south-2\"\n    },\n    {\n        \"label\": \"Asia Pacific (Jakarta)\",\n        \"value\": \"ap-southeast-3\"\n    },\n    {\n        \"label\": \"Asia Pacific (Melbourne)\",\n        \"value\": \"ap-southeast-4\"\n    },\n    {\n        \"label\": \"Asia Pacific (Mumbai)\",\n        \"value\": \"ap-south-1\"\n    },\n    {\n        \"label\": \"Asia Pacific (Osaka)\",\n        \"value\": \"ap-northeast-3\"\n    },\n    {\n        \"label\": \"Asia Pacific (Seoul)\",\n        \"value\": \"ap-northeast-2\"\n    },\n    {\n        \"label\": \"Asia Pacific (Singapore)\",\n        \"value\": \"ap-southeast-1\"\n    },\n    {\n        \"label\": \"Asia Pacific (Sydney)\",\n        \"value\": \"ap-southeast-2\"\n    },\n    {\n        \"label\": \"Asia Pacific (Tokyo)\",\n        \"value\": \"ap-northeast-1\"\n    },\n    {\n        \"label\": \"Canada (Central)\",\n        \"value\": \"ca-central-1\"\n    },\n    {\n        \"label\": \"China (Beijing)\",\n        \"value\": \"cn-north-1\"\n    },\n    {\n        \"label\": \"China (Ningxia)\",\n        \"value\": \"cn-northwest-1\"\n    },\n    {\n        \"label\": \"Europe (Frankfurt)\",\n        \"value\": \"eu-central-1\"\n    },\n    {\n        \"label\": \"Europe (Ireland)\",\n        \"value\": \"eu-west-1\"\n    },\n    {\n        \"label\": \"Europe (London)\",\n        \"value\": \"eu-west-2\"\n    },\n    {\n        \"label\": \"Europe (Milan)\",\n        \"value\": \"eu-south-1\"\n    },\n    {\n        \"label\": \"Europe (Paris)\",\n        \"value\": \"eu-west-3\"\n    },\n    {\n        \"label\": \"Europe (Spain)\",\n        \"value\": \"eu-south-2\"\n    },\n    {\n        \"label\": \"Europe (Stockholm)\",\n        \"value\": \"eu-north-1\"\n    },\n    {\n        \"label\": \"Europe (Zurich)\",\n        \"value\": \"eu-central-2\"\n    },\n    {\n        \"label\": \"Middle East (Bahrain)\",\n        \"value\": \"me-south-1\"\n    },\n    {\n        \"label\": \"Middle East (UAE)\",\n        \"value\": \"me-central-1\"\n    },\n    {\n        \"label\": \"South America (São Paulo)\",\n        \"value\": \"sa-east-1\"\n    }\n]",
+                      "placeholder": "Select value"
+                    },
+                    "type": "select"
+                  }
+                ],
+                "isVisible": "true",
+                "layout": {
+                  "default": {
+                    "height": 7,
+                    "width": 3,
+                    "x": 2,
+                    "y": 31
+                  }
+                }
+              },
+              "type": "gridCell"
+            },
+            {
+              "events": [],
+              "name": "gridCell3",
+              "properties": {
+                "children": [
+                  {
+                    "events": [
+                      {
+                        "name": "click",
+                        "queryName": "describeAutoScalingGroup0",
+                        "type": "triggerQuery"
+                      }
+                    ],
+                    "name": "button0",
+                    "properties": {
+                      "isBorderless": false,
+                      "isDisabled": "${!(region?.value && groupName?.value)}",
+                      "isLoading": false,
+                      "isPrimary": true,
+                      "isVisible": true,
+                      "label": "Describe",
+                      "level": "default"
+                    },
+                    "type": "button"
+                  }
+                ],
+                "isVisible": "true",
+                "layout": {
+                  "default": {
+                    "height": 4,
+                    "width": 1,
+                    "x": 9,
+                    "y": 34
+                  }
+                }
+              },
+              "type": "gridCell"
+            },
+            {
+              "events": [],
+              "name": "gridCell5",
+              "properties": {
+                "children": [
+                  {
+                    "events": [],
+                    "name": "desiredCapacity",
+                    "properties": {
+                      "isDisabled": false,
+                      "isLoading": false,
+                      "isVisible": "${Boolean(describeAutoScalingGroup0?.outputs?.amzRequestId)}",
+                      "label": "Desired Cluser Capacity",
+                      "size": "sm",
+                      "style": "green",
+                      "unit": "",
+                      "value": "${describeAutoScalingGroup0?.outputs.autoScalingGroup.DesiredCapacity}"
+                    },
+                    "type": "calloutValue"
+                  }
+                ],
+                "isVisible": "true",
+                "layout": {
+                  "default": {
+                    "height": 8,
+                    "width": 2,
+                    "x": 3,
+                    "y": 43
+                  }
+                }
+              },
+              "type": "gridCell"
+            },
+            {
+              "events": [],
+              "name": "gridCell5_copy",
+              "properties": {
+                "children": [
+                  {
+                    "events": [],
+                    "name": "minCapacity",
+                    "properties": {
+                      "isDisabled": false,
+                      "isLoading": false,
+                      "isVisible": "${Boolean(describeAutoScalingGroup0?.outputs?.amzRequestId)}",
+                      "label": "Minimum Cluser Capacity",
+                      "size": "sm",
+                      "style": "purple",
+                      "unit": "",
+                      "value": "${describeAutoScalingGroup0?.outputs.autoScalingGroup.MinSize}"
+                    },
+                    "type": "calloutValue"
+                  }
+                ],
+                "isVisible": "true",
+                "layout": {
+                  "default": {
+                    "height": 8,
+                    "width": 2,
+                    "x": 5,
+                    "y": 43
+                  }
+                }
+              },
+              "type": "gridCell"
+            },
+            {
+              "events": [],
+              "name": "gridCell5_copy1",
+              "properties": {
+                "children": [
+                  {
+                    "events": [],
+                    "name": "maxCapacity",
+                    "properties": {
+                      "isDisabled": false,
+                      "isLoading": false,
+                      "isVisible": "${Boolean(describeAutoScalingGroup0?.outputs?.amzRequestId)}",
+                      "label": "Maximum Cluser Capacity",
+                      "size": "sm",
+                      "style": "blue",
+                      "unit": "",
+                      "value": "${describeAutoScalingGroup0?.outputs.autoScalingGroup.MaxSize}"
+                    },
+                    "type": "calloutValue"
+                  }
+                ],
+                "isVisible": "true",
+                "layout": {
+                  "default": {
+                    "height": 8,
+                    "width": 2,
+                    "x": 7,
+                    "y": 43
+                  }
+                }
+              },
+              "type": "gridCell"
+            },
+            {
+              "events": [],
+              "name": "gridCell2",
+              "properties": {
+                "children": [
+                  {
+                    "events": [
+                      {
+                        "name": "change",
+                        "type": "setStateVariableValue",
+                        "value": "${\n    const calculateDesiredCapacity = () => {\n    let desiredCapacity = describeAutoScalingGroup0.outputs.autoScalingGroup.DesiredCapacity;\n\n    if (action.value === 'UP') {\n        desiredCapacity += 1;\n    } else if (action.value === 'DOWN') {\n        if (desiredCapacity > 0) {\n            desiredCapacity -= 1;\n        }\n    } else if (action.value === 'MAX') {\n        desiredCapacity = describeAutoScalingGroup0.outputs.autoScalingGroup.MaxSize;\n    }\n\n    return desiredCapacity;\n};\n\n[\n  ...variable0.value,\n  calculateDesiredCapacity()\n]\n\n}",
+                        "variableName": "variable0"
+                      }
+                    ],
+                    "name": "action",
+                    "properties": {
+                      "defaultValue": "",
+                      "isDisabled": false,
+                      "isMultiselect": "false",
+                      "isVisible": "${Boolean(describeAutoScalingGroup0?.outputs?.amzRequestId)}",
+                      "label": "Action",
+                      "options": "[\n    {\n        \"label\": \"Scale Up\",\n        \"value\": \"UP\"\n    },\n    {\n        \"label\": \"Scale Down\",\n        \"value\": \"DOWN\"\n    },\n    {\n        \"label\": \"Scale to Max\",\n        \"value\": \"MAX\"\n    },\n    {\n        \"label\": \"Scale to Min\",\n        \"value\": \"MIN\"\n    }\n]",
+                      "placeholder": "Select value"
+                    },
+                    "type": "select"
+                  }
+                ],
+                "isVisible": "true",
+                "layout": {
+                  "default": {
+                    "height": 7,
+                    "width": 3,
+                    "x": 2,
+                    "y": 56
+                  }
+                }
+              },
+              "type": "gridCell"
+            },
+            {
+              "events": [],
+              "name": "gridCell6",
+              "properties": {
+                "children": [
+                  {
+                    "events": [],
+                    "name": "newCapacity",
+                    "properties": {
+                      "defaultValue": "${dataTransform0?.outputs}",
+                      "isDisabled": true,
+                      "isVisible": "${Boolean(describeAutoScalingGroup0?.outputs?.amzRequestId)}",
+                      "label": "New Capacity"
+                    },
+                    "type": "numberInput"
+                  }
+                ],
+                "isVisible": "true",
+                "layout": {
+                  "default": {
+                    "height": 7,
+                    "width": 4,
+                    "x": 5,
+                    "y": 56
+                  }
+                }
+              },
+              "type": "gridCell"
+            },
+            {
+              "events": [],
+              "name": "gridCell3_copy",
+              "properties": {
+                "children": [
+                  {
+                    "events": [
+                      {
+                        "name": "click",
+                        "queryName": "setDesiredCapacity0",
+                        "type": "triggerQuery"
+                      }
+                    ],
+                    "name": "update",
+                    "properties": {
+                      "isBorderless": false,
+                      "isDisabled": "${!action.value?.length > 0}",
+                      "isLoading": "${setDesiredCapacity0?.isLoading}",
+                      "isPrimary": true,
+                      "isVisible": "${Boolean(describeAutoScalingGroup0?.outputs?.amzRequestId)}",
+                      "label": "Update",
+                      "level": "default"
+                    },
+                    "type": "button"
+                  }
+                ],
+                "isVisible": "true",
+                "layout": {
+                  "default": {
+                    "height": 4,
+                    "width": 1,
+                    "x": 9,
+                    "y": 59
+                  }
+                }
+              },
+              "type": "gridCell"
+            },
+            {
+              "events": [],
+              "name": "gridCell8",
+              "properties": {
+                "children": [
+                  {
+                    "events": [],
+                    "name": "container0",
+                    "properties": {
+                      "children": [
+                        {
+                          "events": [],
+                          "name": "grid1",
+                          "properties": {
+                            "children": [
+                              {
+                                "events": [],
+                                "name": "gridCell7",
+                                "properties": {
+                                  "children": [
+                                    {
+                                      "events": [],
+                                      "name": "text0",
+                                      "properties": {
+                                        "content": "## Manage AWS Autoscaling Groups\nHey ${global.user.name}  👋, Fill out the inputs below to adjust your AWS autoscaling groups.",
+                                        "contentType": "markdown",
+                                        "isVisible": true,
+                                        "textAlign": "center",
+                                        "verticalAlign": "top"
+                                      },
+                                      "type": "text"
+                                    }
+                                  ],
+                                  "isVisible": "true",
+                                  "layout": {
+                                    "default": {
+                                      "height": 10,
+                                      "width": 12,
+                                      "x": 0,
+                                      "y": 15
+                                    }
+                                  }
+                                },
+                                "type": "gridCell"
+                              },
+                              {
+                                "events": [],
+                                "name": "gridCell7",
+                                "properties": {
+                                  "children": [
+                                    {
+                                      "events": [],
+                                      "name": "text0",
+                                      "properties": {
+                                        "content": "## Manage AWS Autoscaling Groups\nHey ${global.user.name}, Fill out the inputs below to adjust your AWS autoscaling groups.",
+                                        "contentType": "markdown",
+                                        "isVisible": true,
+                                        "textAlign": "center",
+                                        "verticalAlign": "top"
+                                      },
+                                      "type": "text"
+                                    }
+                                  ],
+                                  "isVisible": "true",
+                                  "layout": {
+                                    "default": {
+                                      "height": 10,
+                                      "width": 12,
+                                      "x": 0,
+                                      "y": 15
+                                    }
+                                  }
+                                },
+                                "type": "gridCell"
+                              }
+                            ]
+                          },
+                          "type": "grid"
+                        }
+                      ],
+                      "hasBackground": false,
+                      "isVisible": true
+                    },
+                    "type": "container"
+                  }
+                ],
+                "isVisible": "true",
+                "layout": {
+                  "default": {
+                    "height": 31,
+                    "width": 6,
+                    "x": 3,
+                    "y": 0
+                  }
+                }
+              },
+              "type": "gridCell"
+            }
+          ]
+        },
+        "type": "grid"
+      }
+    ],
+    "description": "View autoscaling group capacity and trigger a change",
+    "favorite": false,
+    "name": "Manage AWS Autoscaling Groups",
+    "rootInstanceName": "grid0",
+    "selfService": false,
+    "tags": [
+      "aws"
+    ],
+    "connections": [
+      {
+        "id": "2a8a6d56-4c60-4772-9f1e-69bafed9f0ae",
+        "name": "DatadogAWSConnection-1071"
+      }
+    ],
+    "runAsUserUuid": "52d81077-e1a9-11ee-8b5a-ce9410b1f7ca"
+  }
