@@ -1,0 +1,373 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Simple test stack - lightweight AWS resources for Datadog onboarding testing
+
+Resources:
+  # --- S3 Bucket ---
+  TestBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'cfn-simple-test-${AWS::AccountId}'
+      Tags:
+        - Key: Project
+          Value: cfn-simple
+        - Key: Team
+          Value: platform-engineering
+        - Key: Service
+          Value: data-platform
+
+  # --- S3 Artifacts Bucket ---
+  ArtifactsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'cfn-simple-artifacts-${AWS::AccountId}'
+      Tags:
+        - Key: Project
+          Value: cfn-simple
+        - Key: Team
+          Value: devops
+        - Key: Service
+          Value: data-platform
+
+  # --- SQS Dead Letter Queue ---
+  DeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: cfn-simple-dlq
+      MessageRetentionPeriod: 1209600
+      Tags:
+        - Key: Project
+          Value: cfn-simple
+        - Key: Team
+          Value: platform-engineering
+        - Key: Service
+          Value: order-service
+
+  # --- SQS Queue ---
+  TestQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: cfn-simple-test-queue
+      MessageRetentionPeriod: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt DeadLetterQueue.Arn
+        maxReceiveCount: 3
+      Tags:
+        - Key: Project
+          Value: cfn-simple
+        - Key: Team
+          Value: platform-engineering
+        - Key: Service
+          Value: order-service
+
+  # --- SNS Topic ---
+  TestTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: cfn-simple-test-topic
+      Tags:
+        - Key: Project
+          Value: cfn-simple
+        - Key: Team
+          Value: platform-engineering
+        - Key: Service
+          Value: order-service
+
+  # --- DynamoDB Table ---
+  TestTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: cfn-simple-test-table
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+      Tags:
+        - Key: Project
+          Value: cfn-simple
+        - Key: Team
+          Value: platform-engineering
+        - Key: Service
+          Value: order-service
+
+  # --- DynamoDB Sessions Table ---
+  SessionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: cfn-simple-sessions
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: sessionId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: sessionId
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      Tags:
+        - Key: Project
+          Value: cfn-simple
+        - Key: Team
+          Value: auth
+        - Key: Service
+          Value: data-platform
+
+  # --- DynamoDB Events Table ---
+  EventsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: cfn-simple-events
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: eventId
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: N
+        - AttributeName: serviceName
+          AttributeType: S
+      KeySchema:
+        - AttributeName: eventId
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: ServiceIndex
+          KeySchema:
+            - AttributeName: serviceName
+              KeyType: HASH
+            - AttributeName: timestamp
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Project
+          Value: cfn-simple
+        - Key: Team
+          Value: platform-engineering
+        - Key: Service
+          Value: data-platform
+
+  # --- IAM Role for Lambda ---
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: cfn-simple-lambda-execution-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                Resource:
+                  - !GetAtt SessionsTable.Arn
+                  - !GetAtt EventsTable.Arn
+      Tags:
+        - Key: Project
+          Value: cfn-simple
+        - Key: Team
+          Value: platform-engineering
+        - Key: Service
+          Value: data-platform
+
+  # --- Lambda: Order Processor ---
+  ProcessorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: cfn-simple-order-processor
+      Runtime: nodejs20.x
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Handler: index.handler
+      Code:
+        ZipFile: |
+          exports.handler = async (event) => {
+            console.log('Processing order:', JSON.stringify(event));
+            const orderId = event.orderId || 'ord-' + Date.now();
+            console.log('Order processed:', orderId);
+            return { statusCode: 200, orderId, status: 'processed' };
+          };
+      Timeout: 30
+      MemorySize: 128
+      Tags:
+        - Key: Project
+          Value: cfn-simple
+        - Key: Team
+          Value: checkout
+        - Key: Service
+          Value: order-service
+
+  # --- Lambda: Notifier ---
+  NotifierFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: cfn-simple-notifier
+      Runtime: nodejs20.x
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Handler: index.handler
+      Code:
+        ZipFile: |
+          exports.handler = async (event) => {
+            console.log('Dispatching notification:', JSON.stringify(event));
+            const channel = event.channel || 'email';
+            console.log('Notification sent via:', channel);
+            return { statusCode: 200, channel, status: 'sent' };
+          };
+      Timeout: 30
+      MemorySize: 128
+      Tags:
+        - Key: Project
+          Value: cfn-simple
+        - Key: Team
+          Value: platform-engineering
+        - Key: Service
+          Value: notifications
+
+  # --- Lambda: Seed Data ---
+  SeedDataFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: cfn-simple-seed-data
+      Runtime: nodejs20.x
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Handler: index.handler
+      Environment:
+        Variables:
+          SESSIONS_TABLE: !Ref SessionsTable
+          EVENTS_TABLE: !Ref EventsTable
+      Code:
+        ZipFile: |
+          const { DynamoDBClient, PutItemCommand } = require('@aws-sdk/client-dynamodb');
+          const https = require('https');
+          const client = new DynamoDBClient({});
+
+          exports.handler = async (event, context) => {
+            const responseUrl = event.ResponseURL;
+            const status = 'SUCCESS';
+            try {
+              if (event.RequestType === 'Create') {
+                const now = Math.floor(Date.now() / 1000);
+                await client.send(new PutItemCommand({
+                  TableName: process.env.SESSIONS_TABLE,
+                  Item: {
+                    userId: { S: 'user-001' },
+                    sessionId: { S: 'sess-abc123' },
+                    expiresAt: { N: String(now + 3600) },
+                    role: { S: 'admin' }
+                  }
+                }));
+                await client.send(new PutItemCommand({
+                  TableName: process.env.SESSIONS_TABLE,
+                  Item: {
+                    userId: { S: 'user-002' },
+                    sessionId: { S: 'sess-def456' },
+                    expiresAt: { N: String(now + 7200) },
+                    role: { S: 'viewer' }
+                  }
+                }));
+                await client.send(new PutItemCommand({
+                  TableName: process.env.EVENTS_TABLE,
+                  Item: {
+                    eventId: { S: 'evt-001' },
+                    timestamp: { N: String(now) },
+                    serviceName: { S: 'order-service' },
+                    action: { S: 'order.created' }
+                  }
+                }));
+                await client.send(new PutItemCommand({
+                  TableName: process.env.EVENTS_TABLE,
+                  Item: {
+                    eventId: { S: 'evt-002' },
+                    timestamp: { N: String(now - 60) },
+                    serviceName: { S: 'notifications' },
+                    action: { S: 'notification.sent' }
+                  }
+                }));
+                console.log('Seed data written successfully');
+              }
+            } catch (err) {
+              console.error('Seed error:', err);
+            }
+            await sendResponse(responseUrl, event, context, status);
+          };
+
+          function sendResponse(url, event, context, status) {
+            return new Promise((resolve, reject) => {
+              const body = JSON.stringify({
+                Status: status,
+                Reason: 'See CloudWatch logs',
+                PhysicalResourceId: context.logStreamName,
+                StackId: event.StackId,
+                RequestId: event.RequestId,
+                LogicalResourceId: event.LogicalResourceId
+              });
+              const parsed = new URL(url);
+              const req = https.request({
+                hostname: parsed.hostname,
+                path: parsed.pathname + parsed.search,
+                method: 'PUT',
+                headers: { 'Content-Type': '', 'Content-Length': body.length }
+              }, resolve);
+              req.on('error', reject);
+              req.write(body);
+              req.end();
+            });
+          }
+      Timeout: 60
+      MemorySize: 128
+      Tags:
+        - Key: Project
+          Value: cfn-simple
+        - Key: Team
+          Value: platform-engineering
+        - Key: Service
+          Value: data-platform
+
+  # --- Custom Resource: Trigger Seed Data ---
+  SeedDataCustomResource:
+    Type: AWS::CloudFormation::CustomResource
+    DependsOn:
+      - SessionsTable
+      - EventsTable
+    Properties:
+      ServiceToken: !GetAtt SeedDataFunction.Arn
+
+Outputs:
+  BucketName:
+    Value: !Ref TestBucket
+  QueueUrl:
+    Value: !Ref TestQueue
+  TopicArn:
+    Value: !Ref TestTopic
+  TableName:
+    Value: !Ref TestTable
+  DeadLetterQueueUrl:
+    Value: !Ref DeadLetterQueue
+  ArtifactsBucketName:
+    Value: !Ref ArtifactsBucket
+  SessionsTableName:
+    Value: !Ref SessionsTable
+  EventsTableName:
+    Value: !Ref EventsTable
+  ProcessorFunctionArn:
+    Value: !GetAtt ProcessorFunction.Arn
+  NotifierFunctionArn:
+    Value: !GetAtt NotifierFunction.Arn

@@ -1,0 +1,353 @@
+# Copyright 2026 Amazon.com and its affiliates; all rights reserved.
+# This file is Amazon Web Services Content and may not be duplicated or distributed without permission.
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Stickerlandia Web Frontend - S3 Deployment and CloudFront Cache Invalidation
+
+Parameters:
+  StaticAssetsBucket:
+    Type: String
+    Description: S3 bucket containing the built frontend assets
+
+  StaticAssetsKeyPrefix:
+    Type: String
+    Description: Key prefix for assets in the static assets bucket
+
+  WebFrontendBucketName:
+    Type: String
+    Description: Target S3 bucket for web frontend deployment (from shared stack)
+
+  CloudFrontDistributionId:
+    Type: String
+    Description: CloudFront distribution ID for cache invalidation (from shared stack)
+
+Resources:
+  #############################################################################
+  # IAM Role for S3 Deployment Lambda
+  #############################################################################
+
+  S3DeploymentLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub stickerlandia-s3-deploy-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: S3DeploymentPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # Read from source bucket (StaticAssetsBucket)
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "arn:aws:s3:::${StaticAssetsBucket}"
+                  - !Sub "arn:aws:s3:::${StaticAssetsBucket}/*"
+              # Write to destination bucket (WebFrontendBucket)
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "arn:aws:s3:::${WebFrontendBucketName}"
+                  - !Sub "arn:aws:s3:::${WebFrontendBucketName}/*"
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: web-frontend
+
+  #############################################################################
+  # IAM Role for CloudFront Invalidation Lambda
+  #############################################################################
+
+  CloudFrontInvalidationLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub stickerlandia-cf-invalidate-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: CloudFrontInvalidationPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudfront:CreateInvalidation
+                  - cloudfront:GetInvalidation
+                Resource: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistributionId}"
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: web-frontend
+
+  #############################################################################
+  # S3 Deployment Lambda Function
+  #############################################################################
+
+  S3DeploymentFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub stickerlandia-s3-deploy
+      Description: Deploys web frontend assets from source S3 to destination S3
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt S3DeploymentLambdaRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        ZipFile: |
+          import boto3
+          import cfnresponse
+          import mimetypes
+          import logging
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          s3 = boto3.client('s3')
+
+          # Content type mapping for common web assets
+          CONTENT_TYPES = {
+              '.html': 'text/html',
+              '.css': 'text/css',
+              '.js': 'application/javascript',
+              '.json': 'application/json',
+              '.svg': 'image/svg+xml',
+              '.png': 'image/png',
+              '.jpg': 'image/jpeg',
+              '.jpeg': 'image/jpeg',
+              '.gif': 'image/gif',
+              '.ico': 'image/x-icon',
+              '.woff': 'font/woff',
+              '.woff2': 'font/woff2',
+              '.ttf': 'font/ttf',
+              '.eot': 'application/vnd.ms-fontobject',
+              '.sh': 'application/x-sh',
+          }
+
+          def get_content_type(key):
+              """Get content type based on file extension."""
+              for ext, content_type in CONTENT_TYPES.items():
+                  if key.lower().endswith(ext):
+                      return content_type
+              # Fallback to mimetypes
+              content_type, _ = mimetypes.guess_type(key)
+              return content_type or 'application/octet-stream'
+
+          def handler(event, context):
+              logger.info(f"Event: {event}")
+
+              try:
+                  request_type = event['RequestType']
+                  src_bucket = event['ResourceProperties']['SourceBucket']
+                  src_prefix = event['ResourceProperties']['SourcePrefix']
+                  dst_bucket = event['ResourceProperties']['DestinationBucket']
+
+                  if request_type == 'Delete':
+                      # On delete, remove all objects from destination bucket
+                      logger.info(f"Cleaning up destination bucket: {dst_bucket}")
+                      paginator = s3.get_paginator('list_objects_v2')
+                      for page in paginator.paginate(Bucket=dst_bucket):
+                          for obj in page.get('Contents', []):
+                              s3.delete_object(Bucket=dst_bucket, Key=obj['Key'])
+                              logger.info(f"Deleted: {obj['Key']}")
+                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {'Status': 'Cleaned'})
+                      return
+
+                  # For Create and Update, copy all objects
+                  logger.info(f"Copying from s3://{src_bucket}/{src_prefix} to s3://{dst_bucket}/")
+
+                  # First, delete existing objects (prune)
+                  paginator = s3.get_paginator('list_objects_v2')
+                  for page in paginator.paginate(Bucket=dst_bucket):
+                      for obj in page.get('Contents', []):
+                          s3.delete_object(Bucket=dst_bucket, Key=obj['Key'])
+                          logger.info(f"Pruned: {obj['Key']}")
+
+                  # Then copy new objects
+                  copied_count = 0
+                  for page in paginator.paginate(Bucket=src_bucket, Prefix=src_prefix):
+                      for obj in page.get('Contents', []):
+                          src_key = obj['Key']
+                          # Remove the prefix to get the destination key
+                          dst_key = src_key[len(src_prefix):].lstrip('/')
+
+                          if not dst_key:
+                              continue
+
+                          content_type = get_content_type(dst_key)
+
+                          s3.copy_object(
+                              CopySource={'Bucket': src_bucket, 'Key': src_key},
+                              Bucket=dst_bucket,
+                              Key=dst_key,
+                              ContentType=content_type,
+                              MetadataDirective='REPLACE'
+                          )
+                          logger.info(f"Copied: {src_key} -> {dst_key} ({content_type})")
+                          copied_count += 1
+
+                  logger.info(f"Deployment complete. Copied {copied_count} files.")
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {
+                      'Status': 'Deployed',
+                      'FilesCopied': str(copied_count)
+                  })
+
+              except Exception as e:
+                  logger.error(f"Error: {str(e)}")
+                  cfnresponse.send(event, context, cfnresponse.FAILED, {'Error': str(e)})
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: web-frontend
+
+  #############################################################################
+  # CloudFront Invalidation Lambda Function
+  #############################################################################
+
+  CloudFrontInvalidationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub stickerlandia-cf-invalidate
+      Description: Invalidates CloudFront cache after frontend deployment
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt CloudFrontInvalidationLambdaRole.Arn
+      Timeout: 60
+      MemorySize: 128
+      Code:
+        ZipFile: |
+          import boto3
+          import cfnresponse
+          import time
+          import logging
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          cf = boto3.client('cloudfront')
+
+          def handler(event, context):
+              logger.info(f"Event: {event}")
+
+              try:
+                  request_type = event['RequestType']
+                  distribution_id = event['ResourceProperties']['DistributionId']
+
+                  if request_type == 'Delete':
+                      # Nothing to do on delete
+                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {'Status': 'Skipped'})
+                      return
+
+                  # Create invalidation for all paths
+                  caller_reference = f"cfn-{int(time.time() * 1000)}"
+
+                  logger.info(f"Creating invalidation for distribution: {distribution_id}")
+
+                  response = cf.create_invalidation(
+                      DistributionId=distribution_id,
+                      InvalidationBatch={
+                          'Paths': {
+                              'Quantity': 1,
+                              'Items': ['/*']
+                          },
+                          'CallerReference': caller_reference
+                      }
+                  )
+
+                  invalidation_id = response['Invalidation']['Id']
+                  logger.info(f"Invalidation created: {invalidation_id}")
+
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {
+                      'Status': 'Invalidated',
+                      'InvalidationId': invalidation_id
+                  })
+
+              except Exception as e:
+                  logger.error(f"Error: {str(e)}")
+                  cfnresponse.send(event, context, cfnresponse.FAILED, {'Error': str(e)})
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: web-frontend
+
+  #############################################################################
+  # Custom Resource: Deploy Web Frontend to S3
+  #############################################################################
+
+  DeployWebFrontend:
+    Type: Custom::S3Deployment
+    Properties:
+      ServiceToken: !GetAtt S3DeploymentFunction.Arn
+      SourceBucket: !Ref StaticAssetsBucket
+      SourcePrefix: !Sub "${StaticAssetsKeyPrefix}web-frontend-assets/"
+      DestinationBucket: !Ref WebFrontendBucketName
+      # Add a version to force updates when assets change
+      Version: "1.0.0"
+
+  #############################################################################
+  # Custom Resource: Invalidate CloudFront Cache
+  #############################################################################
+
+  InvalidateCloudFront:
+    Type: Custom::CloudFrontInvalidation
+    DependsOn: DeployWebFrontend
+    Properties:
+      ServiceToken: !GetAtt CloudFrontInvalidationFunction.Arn
+      DistributionId: !Ref CloudFrontDistributionId
+      # Add deployment dependency to ensure invalidation happens after S3 copy
+      DeploymentVersion: !GetAtt DeployWebFrontend.FilesCopied
+
+#############################################################################
+# Outputs
+#############################################################################
+
+Outputs:
+  DeploymentStatus:
+    Description: Status of the web frontend deployment
+    Value: !GetAtt DeployWebFrontend.Status
+
+  FilesCopied:
+    Description: Number of files copied to S3
+    Value: !GetAtt DeployWebFrontend.FilesCopied
+
+  CloudFrontInvalidationId:
+    Description: CloudFront invalidation ID
+    Value: !GetAtt InvalidateCloudFront.InvalidationId
+
+  S3DeploymentFunctionArn:
+    Description: ARN of the S3 deployment Lambda function
+    Value: !GetAtt S3DeploymentFunction.Arn
+
+  CloudFrontInvalidationFunctionArn:
+    Description: ARN of the CloudFront invalidation Lambda function
+    Value: !GetAtt CloudFrontInvalidationFunction.Arn
