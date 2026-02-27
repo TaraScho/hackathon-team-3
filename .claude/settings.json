@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(*)",
+      "WebFetch(*)",
+      "mcp__datadog-mcp__*",
+      "mcp__terraform__*",
+      "mcp__terraform__get_provider_details",
+      "mcp__playwright__*"
+    ]
+  }
+}
