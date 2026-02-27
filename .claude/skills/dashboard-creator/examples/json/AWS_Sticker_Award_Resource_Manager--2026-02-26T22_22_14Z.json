@@ -1,0 +1,340 @@
+{
+  "queries": [
+    {
+      "id": "2d8ac5e6-ebd0-462c-ab3e-a374ee224714",
+      "name": "getResourcesByTags0",
+      "type": "action",
+      "properties": {
+        "mockedOutputs": {
+          "enabled": true,
+          "outputs": "{\n  \"amzRequestId\": \"123456\",\n  \"resources\": [\n    {\n      \"resourceArn\": \"arn:aws:s3:::bucket1\"\n    },\n    {\n      \"resourceArn\": \"arn:aws:s3:::bucket2\"\n    },\n    {\n      \"resourceArn\": \"arn:aws:s3:::bucket3\"\n    }\n  ]\n}"
+        },
+        "onlyTriggerManually": false,
+        "showToastOnError": true,
+        "spec": {
+          "fqn": "com.datadoghq.aws.resourcetagging.getResourcesByTags",
+          "inputs": {
+            "filters": "${[{key: tagKeyInput.value || 'service', values: [tagValueInput.value || 'sticker-award']}]}",
+            "region": "${regionSelector.value || 'us-east-1'}",
+            "resourceTypes": [
+              "ec2:instance",
+              "s3:bucket",
+              "rds:db",
+              "lambda:function"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "6b61918f-73e9-445f-bdfd-2bab23965a80",
+      "name": "untagResources0",
+      "type": "action",
+      "properties": {
+        "mockedOutputs": {
+          "enabled": true,
+          "outputs": "{\n  \"amzRequestId\": \"1234567890\"\n}"
+        },
+        "onlyTriggerManually": true,
+        "showToastOnError": true,
+        "spec": {
+          "fqn": "com.datadoghq.aws.resourcetagging.untagResources",
+          "inputs": {
+            "region": "${regionSelector.value || 'us-east-1'}",
+            "resourceArns": [
+              "${taggedResourcesTable.selectedRowData.resourceArn}"
+            ],
+            "tagKeys": [
+              "${tagKeyInput.value || 'service'}"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "id": "cdf7a8a0-5f23-4182-a79a-ba9b0b776cb6",
+  "components": [
+    {
+      "events": [],
+      "name": "grid0",
+      "properties": {
+        "children": [
+          {
+            "events": [],
+            "name": "gridCell0",
+            "properties": {
+              "children": [
+                {
+                  "events": [],
+                  "name": "tagKeyInput",
+                  "properties": {
+                    "defaultValue": "",
+                    "isDisabled": false,
+                    "isVisible": true,
+                    "label": "Tag Key",
+                    "placeholder": "e.g. service"
+                  },
+                  "type": "textInput"
+                }
+              ],
+              "isVisible": "true",
+              "layout": {
+                "default": {
+                  "height": 7,
+                  "width": 4,
+                  "x": 0,
+                  "y": 0
+                }
+              }
+            },
+            "type": "gridCell"
+          },
+          {
+            "events": [],
+            "name": "gridCell1",
+            "properties": {
+              "children": [
+                {
+                  "events": [],
+                  "name": "tagValueInput",
+                  "properties": {
+                    "defaultValue": "",
+                    "isDisabled": false,
+                    "isVisible": true,
+                    "label": "Tag Value",
+                    "placeholder": "e.g. sticker-award"
+                  },
+                  "type": "textInput"
+                }
+              ],
+              "isVisible": "true",
+              "layout": {
+                "default": {
+                  "height": 7,
+                  "width": 4,
+                  "x": 0,
+                  "y": 10
+                }
+              }
+            },
+            "type": "gridCell"
+          },
+          {
+            "events": [],
+            "name": "gridCell2",
+            "properties": {
+              "children": [
+                {
+                  "events": [],
+                  "name": "regionSelector",
+                  "properties": {
+                    "defaultValue": "us-east-1",
+                    "isClearable": "false",
+                    "isDisabled": false,
+                    "isMultiselect": "false",
+                    "isVisible": true,
+                    "label": "AWS Region",
+                    "options": "${[\n  {label: 'US East (N. Virginia)', value: 'us-east-1'},\n  {label: 'US West (Oregon)', value: 'us-west-2'},\n  {label: 'EU (Ireland)', value: 'eu-west-1'},\n  {label: 'Asia Pacific (Sydney)', value: 'ap-southeast-2'}\n]}",
+                    "placeholder": "Select value"
+                  },
+                  "type": "select"
+                }
+              ],
+              "isVisible": "true",
+              "layout": {
+                "default": {
+                  "height": 7,
+                  "width": 4,
+                  "x": 0,
+                  "y": 20
+                }
+              }
+            },
+            "type": "gridCell"
+          },
+          {
+            "events": [],
+            "name": "gridCell3",
+            "properties": {
+              "children": [
+                {
+                  "events": [],
+                  "name": "taggedResourcesTable",
+                  "properties": {
+                    "autoUpdateColumns": false,
+                    "columns": [
+                      {
+                        "dataPath": "Task Description",
+                        "header": "Task Description",
+                        "id": "c43d655e-b4ad-45c9-9549-0996d0005c13",
+                        "isFilterable": true,
+                        "isHidden": false
+                      },
+                      {
+                        "dataPath": "Progress",
+                        "disableSortBy": false,
+                        "formatter": {
+                          "type": "percent"
+                        },
+                        "header": "Progress",
+                        "id": "5b1638e8-f1b1-42dc-b51a-e0ee758a4202",
+                        "isFilterable": true
+                      },
+                      {
+                        "dataPath": "Priority",
+                        "disableSortBy": false,
+                        "formatter": {
+                          "options": [
+                            {
+                              "level": "danger",
+                              "value": "High"
+                            },
+                            {
+                              "level": "warning",
+                              "value": "Medium"
+                            }
+                          ],
+                          "type": "pill"
+                        },
+                        "header": "Priority",
+                        "id": "af148748-f001-47f0-9944-a74c06d43b20",
+                        "isFilterable": true
+                      },
+                      {
+                        "dataPath": "Assigned To",
+                        "formatter": {
+                          "type": "link"
+                        },
+                        "header": "Assigned To",
+                        "id": "ac947249-1075-4e77-9380-5439970880e7",
+                        "isFilterable": true,
+                        "isHidden": false
+                      },
+                      {
+                        "dataPath": "Due Date",
+                        "disableSortBy": false,
+                        "formatter": {
+                          "format": {
+                            "dateFormat": "MMM d, yyyy",
+                            "timeFormat": ""
+                          },
+                          "type": "formatted_time"
+                        },
+                        "header": "Due Date",
+                        "id": "d16099b7-fb9d-4b8d-b24f-ae18d3781fba",
+                        "isFilterable": true
+                      }
+                    ],
+                    "data": "${getResourcesByTags0?.outputs?.resources || []}",
+                    "defaultSorting": [
+                      {
+                        "column": "Due Date",
+                        "direction": "desc"
+                      }
+                    ],
+                    "emptyStateCaption": "",
+                    "globalFilter": true,
+                    "hasColumnToolbar": true,
+                    "hasSortToolbar": true,
+                    "hasTimeFrameFilter": "Due Date",
+                    "isLoading": false,
+                    "isScrollable": "vertical",
+                    "isSubRowsEnabled": false,
+                    "isVisible": true,
+                    "isWrappable": false,
+                    "pageSize": 10,
+                    "paginationType": "client_side",
+                    "rowButtons": [
+                      {
+                        "events": [
+                          {
+                            "name": "click",
+                            "queryName": "untagResources0",
+                            "type": "triggerQuery"
+                          }
+                        ],
+                        "name": "untagResourceButton",
+                        "properties": {
+                          "iconLeft": "",
+                          "iconRight": "",
+                          "isBorderless": false,
+                          "isDisabled": false,
+                          "isLoading": false,
+                          "isPrimary": true,
+                          "isVisible": true,
+                          "label": "Untag Sticker Award",
+                          "level": "danger"
+                        },
+                        "type": "button"
+                      }
+                    ],
+                    "searchable": true,
+                    "summary": true,
+                    "title": "AWS Resources with Sticker Award",
+                    "titleAlignment": "left",
+                    "titleType": "plain_text",
+                    "totalCount": 20
+                  },
+                  "type": "table"
+                }
+              ],
+              "isVisible": "true",
+              "layout": {
+                "default": {
+                  "height": 75,
+                  "width": 12,
+                  "x": 0,
+                  "y": 30
+                }
+              }
+            },
+            "type": "gridCell"
+          },
+          {
+            "events": [],
+            "name": "gridCell4",
+            "properties": {
+              "children": [
+                {
+                  "events": [],
+                  "name": "refreshButton",
+                  "properties": {
+                    "iconLeft": "",
+                    "iconRight": "",
+                    "isBorderless": false,
+                    "isDisabled": false,
+                    "isLoading": false,
+                    "isPrimary": true,
+                    "isVisible": true,
+                    "label": "Button",
+                    "level": "default"
+                  },
+                  "type": "button"
+                }
+              ],
+              "isVisible": "true",
+              "layout": {
+                "default": {
+                  "height": 4,
+                  "width": 2,
+                  "x": 0,
+                  "y": 105
+                }
+              }
+            },
+            "type": "gridCell"
+          }
+        ]
+      },
+      "type": "grid"
+    }
+  ],
+  "description": "Manage and view all AWS resources in your account tagged with service:sticker-award. Includes listing and common management actions such as delete and stop for relevant resources.",
+  "favorite": false,
+  "name": "AWS Sticker Award Resource Manager",
+  "protectionLevel": "direct_publish",
+  "rootInstanceName": "grid0",
+  "selfService": false,
+  "tags": [],
+  "runAsUserUuid": "3d9f43b4-c1aa-4627-9344-832129f29584"
+}

@@ -1,0 +1,115 @@
+{
+  "id": "b2c94dc7-1639-42c6-b12c-a9511ef8eaeb",
+  "name": "Delete AWS EBS Volume",
+  "description": "headless workflow delete AWS EBS Volume template",
+  "categories": [],
+  "highlightedBundles": [],
+  "userTags": [],
+  "systemTags": [
+    "internal"
+  ],
+  "spec": {
+    "steps": [
+      {
+        "name": "If_condition",
+        "parameters": [
+          {
+            "name": "joinOperator",
+            "value": "and"
+          },
+          {
+            "name": "conditions",
+            "value": [
+              {
+                "comparisonOperator": "eq",
+                "leftValue": "{{ Trigger.createSnapshot }}",
+                "rightValue": true
+              }
+            ]
+          }
+        ],
+        "actionId": "com.datadoghq.core.if",
+        "outboundEdges": [
+          {
+            "branchName": "true",
+            "nextStepName": "Create_snapshot"
+          },
+          {
+            "branchName": "false",
+            "nextStepName": "Delete_volume"
+          }
+        ]
+      },
+      {
+        "name": "Create_snapshot",
+        "parameters": [
+          {
+            "name": "region",
+            "value": "{{ Trigger.region }}"
+          },
+          {
+            "name": "volumeId",
+            "value": "{{ Trigger.volumeId }}"
+          }
+        ],
+        "actionId": "com.datadoghq.aws.ebs.createSnapshot",
+        "connectionLabel": "INTEGRATION_AWS",
+        "outboundEdges": [
+          {
+            "branchName": "main",
+            "nextStepName": "Delete_volume"
+          }
+        ]
+      },
+      {
+        "name": "Delete_volume",
+        "parameters": [
+          {
+            "name": "region",
+            "value": "{{ Trigger.region }}"
+          },
+          {
+            "name": "volumeId",
+            "value": "{{ Trigger.volumeId }}"
+          }
+        ],
+        "actionId": "com.datadoghq.aws.ebs.delete_volume",
+        "connectionLabel": "INTEGRATION_AWS",
+        "readinessGate": {
+          "thresholdType": "ANY"
+        }
+      }
+    ],
+    "triggers": [
+      {
+        "workflowTrigger": {},
+        "startStepNames": [
+          "If_condition"
+        ]
+      }
+    ],
+    "inputSchema": {
+      "parameters": [
+        {
+          "name": "region",
+          "type": "STRING",
+          "label": "Region"
+        },
+        {
+          "name": "volumeId",
+          "type": "STRING",
+          "label": "Volume ID",
+          "description": "ID of the volume."
+        },
+        {
+          "name": "createSnapshot",
+          "type": "BOOLEAN",
+          "label": "Create Snapshot",
+          "description": "If checked, a snapshot of the EBS volume will be created and stored in Amazon S3.",
+          "defaultValue": false
+        }
+      ]
+    }
+    },
+    "createdAt": "2025-03-14T10:40:25Z"
+}

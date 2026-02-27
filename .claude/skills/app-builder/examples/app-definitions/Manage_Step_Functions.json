@@ -1,0 +1,1070 @@
+{
+  "queries": [
+    {
+      "id": "b8f82bdf-2f99-47ff-8e11-7c04fb4aeaee",
+      "name": "listStateMachines",
+      "type": "action",
+      "properties": {
+        "onlyTriggerManually": false,
+        "outputs": "${((outputs) => {// Use `outputs` to reference the query's unformatted output.\n\n// TODO: Apply transformations to the raw query output\n\nreturn outputs.stateMachines.filter(s => {\n    const matchesName = search.value?.length ? s.name.toLowerCase().includes(search.value.toLowerCase()) : true;\n    const matchesType = (type.value && type.value !== 'Any Type') ? s.type ===  type.value : true;\n\n    return matchesName && matchesType;\n}).map( s => {\n\n    return {\n        ...s,\n        name: {\n            label: s.name\n        }\n    }\n});})(self.rawOutputs)}",
+        "spec": {
+          "fqn": "com.datadoghq.aws.stepfunctions.listStateMachines",
+          "inputs": {
+            "region": "us-east-1"
+          },
+          "connectionId": "__CONNECTION_ID__"
+        }
+      }
+    },
+    {
+      "id": "ad49f9db-38c9-4659-835b-ba0323aab5c4",
+      "name": "listExecutions",
+      "type": "action",
+      "properties": {
+        "onlyTriggerManually": true,
+        "showToastOnError": true,
+        "spec": {
+          "fqn": "com.datadoghq.aws.stepfunctions.listExecutions",
+          "inputs": {
+            "region": "us-east-1",
+            "stateMachineArn": "${table0.selectedRow?.content?.stateMachineArn}",
+            "statusFilter": "${select0.value}"
+          },
+          "connectionId": "__CONNECTION_ID__"
+        }
+      },
+      "events": [
+        {
+          "modalName": "modal0",
+          "name": "executionFinished",
+          "type": "openModal"
+        }
+      ]
+    },
+    {
+      "id": "7d8300b4-e0e9-4f27-a9f3-1e574435f9a4",
+      "name": "startExecution",
+      "type": "action",
+      "properties": {
+        "onlyTriggerManually": true,
+        "requiresConfirmation": true,
+        "showToastOnError": true,
+        "spec": {
+          "fqn": "com.datadoghq.aws.stepfunctions.startExecution",
+          "inputs": {
+            "input": "${jsonInput0.value ? jsonInput0.value : {}}",
+            "name": "${textInput0.value ? textInput0.value : Math.floor(Math.random() * 10**10)}",
+            "region": "us-east-1",
+            "stateMachineArn": "${table0.selectedRow?.content?.stateMachineArn}"
+          },
+          "connectionId": "__CONNECTION_ID__"
+        }
+      },
+      "events": [
+        {
+          "modalName": "modal1",
+          "name": "executionFinished",
+          "type": "closeModal"
+        },
+        {
+          "componentName": "table1",
+          "name": "executionFinished",
+          "stateFunction": "setSelectedRow",
+          "type": "setComponentState",
+          "value": "${null}"
+        },
+        {
+          "name": "executionFinished",
+          "queryName": "listExecutions",
+          "type": "triggerQuery"
+        }
+      ]
+    },
+    {
+      "id": "b27ec5ec-fb8d-42f1-9fcd-3debc11b5542",
+      "name": "stopExecution",
+      "type": "action",
+      "properties": {
+        "onlyTriggerManually": true,
+        "requiresConfirmation": true,
+        "spec": {
+          "fqn": "com.datadoghq.aws.stepfunctions.stopExecution",
+          "inputs": {
+            "cause": "${textInput1.value}",
+            "error": "${textInput2.value}",
+            "executionArn": "${table1.selectedRow?.content?.executionArn}",
+            "region": "us-east-1"
+          },
+          "connectionId": "__CONNECTION_ID__"
+        }
+      },
+      "events": [
+        {
+          "modalName": "modal2",
+          "name": "executionFinished",
+          "type": "closeModal"
+        },
+        {
+          "componentName": "table1",
+          "name": "executionFinished",
+          "stateFunction": "setSelectedRow",
+          "type": "setComponentState",
+          "value": "${null}"
+        },
+        {
+          "name": "executionFinished",
+          "queryName": "listExecutions",
+          "type": "triggerQuery"
+        }
+      ]
+    },
+    {
+      "id": "b3e3d594-4e5a-4982-90c4-0904a45e48c9",
+      "name": "retryExecution",
+      "type": "action",
+      "properties": {
+        "onlyTriggerManually": true,
+        "spec": {
+          "fqn": "com.datadoghq.aws.stepfunctions.describeExecution",
+          "inputs": {
+            "executionArn": "${table1.selectedRow?.content?.executionArn}",
+            "region": "us-east-1"
+          },
+          "connectionId": "__CONNECTION_ID__"
+        }
+      },
+      "events": [
+        {
+          "componentName": "jsonInput0",
+          "name": "executionFinished",
+          "stateFunction": "setValue",
+          "type": "setComponentState",
+          "value": "${JSON.stringify(JSON.parse(retryExecution.outputs?.execution?.input ?? '{}'), null, 4)}"
+        },
+        {
+          "modalName": "modal1",
+          "name": "executionFinished",
+          "type": "openModal"
+        }
+      ]
+    }
+  ],
+  "id": "18a2a0c4-98a8-43ae-9506-220fac9413f5",
+  "components": [
+    {
+      "events": [],
+      "name": "grid0",
+      "properties": {
+        "children": [
+          {
+            "events": [],
+            "name": "gridCell0",
+            "properties": {
+              "children": [
+                {
+                  "events": [],
+                  "name": "table0",
+                  "properties": {
+                    "columns": [
+                      {
+                        "dataPath": "name",
+                        "disableSortBy": false,
+                        "formatter": {
+                          "type": "avatar"
+                        },
+                        "header": "name"
+                      },
+                      {
+                        "dataPath": "creationDate",
+                        "disableSortBy": false,
+                        "formatter": {
+                          "format": "LARGE_WITHOUT_TIME",
+                          "type": "formatted_time"
+                        },
+                        "header": "created"
+                      },
+                      {
+                        "dataPath": "stateMachineArn",
+                        "header": "stateMachineArn",
+                        "isHidden": true
+                      },
+                      {
+                        "dataPath": "type",
+                        "disableSortBy": false,
+                        "formatter": {
+                          "defaultLevel": "warning",
+                          "isSoft": true,
+                          "options": [
+                            {
+                              "level": "success",
+                              "value": "express"
+                            }
+                          ],
+                          "type": "pill"
+                        },
+                        "header": "type"
+                      }
+                    ],
+                    "data": "${listStateMachines?.outputs}",
+                    "isLoading": "${listStateMachines.isLoading}",
+                    "isScrollable": "vertical",
+                    "isVisible": "true",
+                    "isWrappable": false,
+                    "pageSize": "10",
+                    "paginationType": "client_side",
+                    "rowButtons": [
+                      {
+                        "events": [
+                          {
+                            "name": "click",
+                            "queryName": "listExecutions",
+                            "type": "triggerQuery"
+                          }
+                        ],
+                        "name": "button0",
+                        "properties": {
+                          "isBorderless": false,
+                          "isPrimary": true,
+                          "isVisible": true,
+                          "label": "View Executions"
+                        },
+                        "type": "button"
+                      }
+                    ],
+                    "summary": "false"
+                  },
+                  "type": "table"
+                }
+              ],
+              "isVisible": "true",
+              "layout": {
+                "default": {
+                  "height": 65,
+                  "width": 10,
+                  "x": 1,
+                  "y": 25
+                }
+              }
+            },
+            "type": "gridCell"
+          },
+          {
+            "events": [],
+            "name": "modal0",
+            "properties": {
+              "children": [
+                {
+                  "events": [],
+                  "name": "grid1",
+                  "properties": {
+                    "children": [
+                      {
+                        "events": [],
+                        "name": "gridCell1",
+                        "properties": {
+                          "children": [
+                            {
+                              "events": [],
+                              "name": "table1",
+                              "properties": {
+                                "columns": [
+                                  {
+                                    "dataPath": "name",
+                                    "disableSortBy": false,
+                                    "header": "ID"
+                                  },
+                                  {
+                                    "dataPath": "status",
+                                    "disableSortBy": false,
+                                    "formatter": {
+                                      "isSoft": true,
+                                      "options": [
+                                        {
+                                          "level": "success",
+                                          "value": "RUNNING"
+                                        },
+                                        {
+                                          "level": "success",
+                                          "value": "SUCCEEDED"
+                                        },
+                                        {
+                                          "level": "danger",
+                                          "value": "FAILED"
+                                        },
+                                        {
+                                          "level": "warning",
+                                          "value": "TIMED_OUT"
+                                        },
+                                        {
+                                          "level": "warning",
+                                          "value": "ABORTED']"
+                                        }
+                                      ],
+                                      "type": "pill"
+                                    },
+                                    "header": "status"
+                                  },
+                                  {
+                                    "dataPath": "startDate",
+                                    "disableSortBy": false,
+                                    "formatter": {
+                                      "format": "SMALL",
+                                      "type": "formatted_time"
+                                    },
+                                    "header": "started"
+                                  },
+                                  {
+                                    "dataPath": "stopDate",
+                                    "disableSortBy": false,
+                                    "formatter": {
+                                      "format": "SMALL",
+                                      "type": "formatted_time"
+                                    },
+                                    "header": "stopped"
+                                  },
+                                  {
+                                    "dataPath": "executionArn",
+                                    "header": "executionArn",
+                                    "isHidden": true
+                                  },
+                                  {
+                                    "dataPath": "stateMachineArn",
+                                    "header": "stateMachineArn",
+                                    "isHidden": true
+                                  }
+                                ],
+                                "data": "${listExecutions.outputs.executions?.filter(execution => {\n    const dashboardTimeframe = dashboard.timeframe\n    const executionStartTime = (new Date(execution.startDate)).getTime()\n    if (dashboardTimeframe.start !== 0 || dashboardTimeframe.end !== 0) {\n        return dashboardTimeframe.start <= executionStartTime && executionStartTime <= dashboardTimeframe.end\n    }\n    if (select1.value) {\n        return (Date.now() - select1.value) <= executionStartTime\n    }\n    return true\n})}",
+                                "isScrollable": "vertical",
+                                "isVisible": "true",
+                                "isWrappable": false,
+                                "pageSize": "5",
+                                "paginationType": "client_side",
+                                "rowButtons": [
+                                  {
+                                    "events": [
+                                      {
+                                        "name": "click",
+                                        "queryName": "retryExecution",
+                                        "type": "triggerQuery"
+                                      }
+                                    ],
+                                    "name": "button7",
+                                    "properties": {
+                                      "isBorderless": false,
+                                      "isPrimary": true,
+                                      "isVisible": true,
+                                      "label": "Execute Again"
+                                    },
+                                    "type": "button"
+                                  }
+                                ],
+                                "summary": "true"
+                              },
+                              "type": "table"
+                            }
+                          ],
+                          "isVisible": "true",
+                          "layout": {
+                            "default": {
+                              "height": 34,
+                              "width": 12,
+                              "x": 0,
+                              "y": 13
+                            }
+                          }
+                        },
+                        "type": "gridCell"
+                      },
+                      {
+                        "events": [],
+                        "name": "gridCell2",
+                        "properties": {
+                          "children": [
+                            {
+                              "events": [
+                                {
+                                  "name": "change",
+                                  "queryName": "listExecutions",
+                                  "type": "triggerQuery"
+                                }
+                              ],
+                              "name": "select0",
+                              "properties": {
+                                "defaultValue": "FAILED",
+                                "isDisabled": false,
+                                "isMultiselect": "false",
+                                "isVisible": "true",
+                                "label": "Status Filter",
+                                "options": "['RUNNING', 'FAILED', 'SUCCEEDED', 'TIMED_OUT', 'ABORTED']"
+                              },
+                              "type": "select"
+                            }
+                          ],
+                          "isVisible": "true",
+                          "layout": {
+                            "default": {
+                              "height": 9,
+                              "width": 3,
+                              "x": 6,
+                              "y": 4
+                            }
+                          }
+                        },
+                        "type": "gridCell"
+                      },
+                      {
+                        "events": [],
+                        "name": "gridCell3",
+                        "properties": {
+                          "children": [
+                            {
+                              "events": [
+                                {
+                                  "callback": "${() => {\n    modal1.setIsOpen(true);\n    jsonInput0.setValue('');\n}}",
+                                  "name": "click",
+                                  "type": "custom"
+                                }
+                              ],
+                              "name": "button2",
+                              "properties": {
+                                "isBorderless": false,
+                                "isDisabled": "false",
+                                "isLoading": "false",
+                                "isPrimary": true,
+                                "isVisible": "true",
+                                "label": "Start Execution",
+                                "level": "default"
+                              },
+                              "type": "button"
+                            }
+                          ],
+                          "isVisible": "true",
+                          "layout": {
+                            "default": {
+                              "height": 4,
+                              "width": 2,
+                              "x": 2,
+                              "y": 8
+                            }
+                          }
+                        },
+                        "type": "gridCell"
+                      },
+                      {
+                        "events": [],
+                        "name": "gridCell9",
+                        "properties": {
+                          "children": [
+                            {
+                              "events": [],
+                              "name": "select1",
+                              "properties": {
+                                "defaultValue": "",
+                                "isDisabled": false,
+                                "isMultiselect": "false",
+                                "isVisible": "${dashboard.timeframe?.start === 0 && dashboard.timeframe?.end === 0}",
+                                "label": "Timeframe",
+                                "options": "${[{label: \"24 hours ago\", value: 24 * 60 * 60 * 1000}, {label: \"2 Days\", value: 2 * 24 * 60 * 60 * 1000}, {label: \"1 week\", value: 7 * 24 * 60 * 60 * 1000}, {label: '1 month', value: 30 * 24 * 60 * 60 * 1000}]}"
+                              },
+                              "type": "select"
+                            }
+                          ],
+                          "isVisible": "true",
+                          "layout": {
+                            "default": {
+                              "height": 9,
+                              "width": 3,
+                              "x": 9,
+                              "y": 4
+                            }
+                          }
+                        },
+                        "type": "gridCell"
+                      },
+                      {
+                        "events": [],
+                        "name": "gridCell10",
+                        "properties": {
+                          "children": [
+                            {
+                              "events": [
+                                {
+                                  "modalName": "modal2",
+                                  "name": "click",
+                                  "type": "openModal"
+                                }
+                              ],
+                              "name": "button1",
+                              "properties": {
+                                "isBorderless": false,
+                                "isDisabled": "${table1.selectedRow?.content?.status !== 'RUNNING'}",
+                                "isLoading": "false",
+                                "isPrimary": true,
+                                "isVisible": "true",
+                                "label": "Stop Execution",
+                                "level": "default"
+                              },
+                              "type": "button"
+                            }
+                          ],
+                          "isVisible": "true",
+                          "layout": {
+                            "default": {
+                              "height": 4,
+                              "width": 2,
+                              "x": 0,
+                              "y": 8
+                            }
+                          }
+                        },
+                        "type": "gridCell"
+                      },
+                      {
+                        "events": [],
+                        "name": "gridCell16",
+                        "properties": {
+                          "children": [
+                            {
+                              "events": [],
+                              "name": "text2",
+                              "properties": {
+                                "content": "## ${table0.selectedRow.content.name} Executions",
+                                "contentType": "markdown",
+                                "isVisible": "true"
+                              },
+                              "type": "text"
+                            }
+                          ],
+                          "isVisible": "true",
+                          "layout": {
+                            "default": {
+                              "height": 4,
+                              "width": 12,
+                              "x": 0,
+                              "y": 0
+                            }
+                          }
+                        },
+                        "type": "gridCell"
+                      }
+                    ]
+                  },
+                  "type": "grid"
+                }
+              ],
+              "isVisible": "true",
+              "size": "lg"
+            },
+            "type": "modal"
+          },
+          {
+            "events": [],
+            "name": "modal1",
+            "properties": {
+              "children": [
+                {
+                  "events": [],
+                  "name": "grid2",
+                  "properties": {
+                    "children": [
+                      {
+                        "events": [],
+                        "name": "gridCell4",
+                        "properties": {
+                          "children": [
+                            {
+                              "events": [],
+                              "name": "text0",
+                              "properties": {
+                                "content": "## Start Execution",
+                                "contentType": "markdown",
+                                "isVisible": "true"
+                              },
+                              "type": "text"
+                            }
+                          ],
+                          "isVisible": "true",
+                          "layout": {
+                            "default": {
+                              "height": 4,
+                              "width": 12,
+                              "x": 0,
+                              "y": 0
+                            }
+                          }
+                        },
+                        "type": "gridCell"
+                      },
+                      {
+                        "events": [],
+                        "name": "gridCell5",
+                        "properties": {
+                          "children": [
+                            {
+                              "events": [],
+                              "name": "textInput0",
+                              "properties": {
+                                "defaultValue": "",
+                                "isDisabled": false,
+                                "isVisible": "true",
+                                "label": "Name"
+                              },
+                              "type": "textInput"
+                            }
+                          ],
+                          "isVisible": "true",
+                          "layout": {
+                            "default": {
+                              "height": 8,
+                              "width": 12,
+                              "x": 0,
+                              "y": 5
+                            }
+                          }
+                        },
+                        "type": "gridCell"
+                      },
+                      {
+                        "events": [],
+                        "name": "gridCell6",
+                        "properties": {
+                          "children": [
+                            {
+                              "events": [],
+                              "name": "jsonInput0",
+                              "properties": {
+                                "defaultValue": "",
+                                "isVisible": "true",
+                                "label": "Input",
+                                "readOnly": "false"
+                              },
+                              "type": "jsonInput"
+                            }
+                          ],
+                          "isVisible": "true",
+                          "layout": {
+                            "default": {
+                              "height": 20,
+                              "width": 12,
+                              "x": 0,
+                              "y": 14
+                            }
+                          }
+                        },
+                        "type": "gridCell"
+                      },
+                      {
+                        "events": [],
+                        "name": "gridCell7",
+                        "properties": {
+                          "children": [
+                            {
+                              "events": [
+                                {
+                                  "name": "click",
+                                  "queryName": "startExecution",
+                                  "type": "triggerQuery"
+                                }
+                              ],
+                              "name": "button3",
+                              "properties": {
+                                "isBorderless": false,
+                                "isDisabled": "false",
+                                "isLoading": "${startExecution.isLoading}",
+                                "isPrimary": true,
+                                "isVisible": "true",
+                                "label": "Start Execution",
+                                "level": "default"
+                              },
+                              "type": "button"
+                            }
+                          ],
+                          "isVisible": "true",
+                          "layout": {
+                            "default": {
+                              "height": 4,
+                              "width": 4,
+                              "x": 8,
+                              "y": 37
+                            }
+                          }
+                        },
+                        "type": "gridCell"
+                      },
+                      {
+                        "events": [],
+                        "name": "gridCell8",
+                        "properties": {
+                          "children": [
+                            {
+                              "events": [
+                                {
+                                  "modalName": "modal1",
+                                  "name": "click",
+                                  "type": "closeModal"
+                                }
+                              ],
+                              "name": "button4",
+                              "properties": {
+                                "isBorderless": false,
+                                "isDisabled": "false",
+                                "isLoading": "false",
+                                "isPrimary": false,
+                                "isVisible": "true",
+                                "label": "Cancel",
+                                "level": "default"
+                              },
+                              "type": "button"
+                            }
+                          ],
+                          "isVisible": "true",
+                          "layout": {
+                            "default": {
+                              "height": 4,
+                              "width": 2,
+                              "x": 6,
+                              "y": 37
+                            }
+                          }
+                        },
+                        "type": "gridCell"
+                      }
+                    ]
+                  },
+                  "type": "grid"
+                }
+              ],
+              "isVisible": "true",
+              "size": "md"
+            },
+            "type": "modal"
+          },
+          {
+            "events": [],
+            "name": "modal2",
+            "properties": {
+              "children": [
+                {
+                  "events": [],
+                  "name": "grid3",
+                  "properties": {
+                    "children": [
+                      {
+                        "events": [],
+                        "name": "gridCell11",
+                        "properties": {
+                          "children": [
+                            {
+                              "events": [
+                                {
+                                  "name": "click",
+                                  "queryName": "stopExecution",
+                                  "type": "triggerQuery"
+                                }
+                              ],
+                              "name": "button5",
+                              "properties": {
+                                "isBorderless": false,
+                                "isDisabled": "${!table1.selectedRow?.content?.executionArn}",
+                                "isLoading": "false",
+                                "isPrimary": true,
+                                "isVisible": "true",
+                                "label": "Stop Execution",
+                                "level": "default"
+                              },
+                              "type": "button"
+                            }
+                          ],
+                          "isVisible": "true",
+                          "layout": {
+                            "default": {
+                              "height": 4,
+                              "width": 4,
+                              "x": 8,
+                              "y": 32
+                            }
+                          }
+                        },
+                        "type": "gridCell"
+                      },
+                      {
+                        "events": [],
+                        "name": "gridCell12",
+                        "properties": {
+                          "children": [
+                            {
+                              "events": [],
+                              "name": "textInput1",
+                              "properties": {
+                                "defaultValue": "",
+                                "isDisabled": false,
+                                "isVisible": "true",
+                                "label": "Cause"
+                              },
+                              "type": "textInput"
+                            }
+                          ],
+                          "isVisible": "true",
+                          "layout": {
+                            "default": {
+                              "height": 8,
+                              "width": 12,
+                              "x": 0,
+                              "y": 7
+                            }
+                          }
+                        },
+                        "type": "gridCell"
+                      },
+                      {
+                        "events": [],
+                        "name": "gridCell13",
+                        "properties": {
+                          "children": [
+                            {
+                              "events": [],
+                              "name": "textInput2",
+                              "properties": {
+                                "defaultValue": "",
+                                "isDisabled": false,
+                                "isVisible": "true",
+                                "label": "Error"
+                              },
+                              "type": "textInput"
+                            }
+                          ],
+                          "isVisible": "true",
+                          "layout": {
+                            "default": {
+                              "height": 8,
+                              "width": 12,
+                              "x": 0,
+                              "y": 18
+                            }
+                          }
+                        },
+                        "type": "gridCell"
+                      },
+                      {
+                        "events": [],
+                        "name": "gridCell14",
+                        "properties": {
+                          "children": [
+                            {
+                              "events": [
+                                {
+                                  "modalName": "modal2",
+                                  "name": "click",
+                                  "type": "closeModal"
+                                }
+                              ],
+                              "name": "button6",
+                              "properties": {
+                                "isBorderless": false,
+                                "isDisabled": "false",
+                                "isLoading": "false",
+                                "isPrimary": false,
+                                "isVisible": "true",
+                                "label": "Cancel",
+                                "level": "default"
+                              },
+                              "type": "button"
+                            }
+                          ],
+                          "isVisible": "true",
+                          "layout": {
+                            "default": {
+                              "height": 4,
+                              "width": 4,
+                              "x": 4,
+                              "y": 32
+                            }
+                          }
+                        },
+                        "type": "gridCell"
+                      },
+                      {
+                        "events": [],
+                        "name": "gridCell15",
+                        "properties": {
+                          "children": [
+                            {
+                              "events": [],
+                              "name": "text1",
+                              "properties": {
+                                "content": "## Stop Execution",
+                                "contentType": "markdown",
+                                "isVisible": "true"
+                              },
+                              "type": "text"
+                            }
+                          ],
+                          "isVisible": "true",
+                          "layout": {
+                            "default": {
+                              "height": 4,
+                              "width": 4,
+                              "x": 0,
+                              "y": 0
+                            }
+                          }
+                        },
+                        "type": "gridCell"
+                      }
+                    ]
+                  },
+                  "type": "grid"
+                }
+              ],
+              "isVisible": "true",
+              "size": "md"
+            },
+            "type": "modal"
+          },
+          {
+            "events": [],
+            "name": "gridCell18",
+            "properties": {
+              "children": [
+                {
+                  "events": [],
+                  "name": "search",
+                  "properties": {
+                    "defaultValue": "",
+                    "isLoading": "false",
+                    "isVisible": "true",
+                    "placeholder": "Search by name",
+                    "size": "md"
+                  },
+                  "type": "search"
+                }
+              ],
+              "isVisible": "true",
+              "layout": {
+                "default": {
+                  "height": 6,
+                  "width": 5,
+                  "x": 1,
+                  "y": 18
+                }
+              }
+            },
+            "type": "gridCell"
+          },
+          {
+            "events": [],
+            "name": "gridCell19",
+            "properties": {
+              "children": [
+                {
+                  "events": [],
+                  "name": "text4",
+                  "properties": {
+                    "content": "# Step Functions Console",
+                    "contentType": "markdown",
+                    "isVisible": "true",
+                    "label": "Text",
+                    "textAlign": "left",
+                    "verticalAlign": "top"
+                  },
+                  "type": "text"
+                }
+              ],
+              "isVisible": "true",
+              "layout": {
+                "default": {
+                  "height": 5,
+                  "width": 3,
+                  "x": 1,
+                  "y": 10
+                }
+              }
+            },
+            "type": "gridCell"
+          },
+          {
+            "events": [],
+            "name": "gridCell20",
+            "properties": {
+              "children": [
+                {
+                  "events": [],
+                  "name": "type",
+                  "properties": {
+                    "defaultValue": "Any Type",
+                    "isDisabled": false,
+                    "isMultiselect": "false",
+                    "isVisible": "true",
+                    "label": "Type",
+                    "options": "${['Any Type', ...new Set(listStateMachines?.rawOutputs?.stateMachines?.map(s => s.type))]}"
+                  },
+                  "type": "select"
+                }
+              ],
+              "isVisible": "true",
+              "layout": {
+                "default": {
+                  "height": 8,
+                  "width": 3,
+                  "x": 6,
+                  "y": 15
+                }
+              }
+            },
+            "type": "gridCell"
+          },
+          {
+            "events": [],
+            "name": "gridCell17",
+            "properties": {
+              "children": [
+                {
+                  "events": [],
+                  "name": "calloutValue0",
+                  "properties": {
+                    "isDisabled": false,
+                    "isLoading": "false",
+                    "isVisible": "true",
+                    "label": "Total",
+                    "size": "sm",
+                    "style": "blue",
+                    "unit": "state machines",
+                    "value": "${listStateMachines?.outputs?.length}"
+                  },
+                  "type": "calloutValue"
+                }
+              ],
+              "isVisible": "true",
+              "layout": {
+                "default": {
+                  "height": 10,
+                  "width": 2,
+                  "x": 9,
+                  "y": 15
+                }
+              }
+            },
+            "type": "gridCell"
+          }
+        ]
+      },
+      "type": "grid"
+    }
+  ],
+  "description": "View state machines and stop, start or pause their associated executions",
+  "favorite": false,
+  "name": "Tara's App Thu, Feb 26, 1:15:03 pm - Manage Step Functions",
+  "protectionLevel": "direct_publish",
+  "rootInstanceName": "grid0",
+  "selfService": false,
+  "tags": [
+    "aws"
+  ],
+  "runAsUserUuid": "3d9f43b4-c1aa-4627-9344-832129f29584",
+  "connections": [
+    {
+      "id": "__CONNECTION_ID__",
+      "name": "INTEGRATION_AWS"
+    }
+  ]
+}

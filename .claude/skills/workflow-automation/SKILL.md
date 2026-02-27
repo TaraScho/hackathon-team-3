@@ -23,8 +23,9 @@ Datadog Workflow Automation runs multi-step runbooks in response to security sig
 
 ### Dependency Diagram
 
-```
-(action-connections → workflow-automation) × M workflows
+```mermaid
+graph LR
+    AC[action-connections] --> WA[workflow-automation × M]
 ```
 
 Each workflow gets its own dedicated action connection (1:1 — never shared).
@@ -46,17 +47,6 @@ Before executing, fetch current API and product documentation:
 
 ---
 
-## Output Format Selection
-
-Read `preferred_output_format` from `.claude/context/repo-analysis.json`:
-
-| `preferred_output_format` | What happens |
-|---|---|
-| `terraform` | Claude queries Terraform MCP for provider docs + generates `.tf` modules in `datadog-resources/terraform/` |
-| `shell` | Claude executes `curl` commands directly via Bash tool |
-
----
-
 ## When to Use
 
 - You need automated incident response for AWS resources triggered by Datadog findings
@@ -75,7 +65,75 @@ Read `preferred_output_format` from `.claude/context/repo-analysis.json`:
 
 ---
 
-## Core Workflow: Submit a Workflow Spec
+## Output Mode
+
+Read `preferred_output_format` from `{RUN_DIR}/repo-analysis.json` (when orchestrated) or `{repo_path}/repo-analysis.json` (standalone):
+
+| `preferred_output_format` | Execution path | Output location |
+|---|---|---|
+| `terraform` | Query Terraform MCP for resource schemas, generate `.tf` files | `{RUN_DIR}/terraform/wf_{short_label_snake}.tf` |
+| `shell` | Execute `curl` commands directly via Bash tool | `{RUN_DIR}/manifest.json` (append entry per resource) |
+
+The two Core Workflow sections below correspond to each mode.
+
+---
+
+## Core Workflow — Terraform Mode: Create Workflow
+
+Use the **exact schema below** — do NOT query TF MCP or infer structure.
+
+**Required fields:** `name`, `description`, `published = true`, `tags`, `spec_json`
+
+**Generate `.tf` file** at `{RUN_DIR}/terraform-staging/{branch}/wf_{short_label_snake}.tf`:
+
+```hcl
+resource "datadog_workflow_automation" "wf_{short_label_snake}" {
+  name        = "{project}-{short_label}-{REPO_ID}"
+  description = "{purpose from workflow_candidate}"
+  published   = true
+  tags        = ["project:{project}", "repo_id:{REPO_ID}"]
+  spec_json   = jsonencode({
+    "triggers" : [{ "dashboardTrigger" : {} }],
+    "steps" : [
+      {
+        "name"           : "{StepName}",
+        "actionId"       : "{com.datadoghq.aws.service.action_name}",
+        "connectionLabel": "INTEGRATION_AWS",
+        "parameters"     : [
+          { "name" : "{param_name}", "value" : "{param_value}" }
+        ]
+      }
+    ],
+    "connectionEnvs" : [{
+      "env" : "default",
+      "connections" : [{
+        "label"        : "INTEGRATION_AWS",
+        "connectionId" : "${datadog_action_connection.conn_wf_{short_label_snake}.id}"
+      }]
+    }],
+    "inputSchema" : {
+      "parameters" : []
+    }
+  })
+}
+
+output "wf_{short_label_snake}_id" {
+  value = datadog_workflow_automation.wf_{short_label_snake}.id
+}
+```
+
+**Key rules:**
+- `spec_json` uses `jsonencode({...})` — connection IDs are wired directly inside `connectionEnvs` using the TF resource reference inside the `jsonencode` block
+- `connectionLabel` in each step must **exactly match** (case-sensitive) the `label` in `connectionEnvs[].connections[]`
+- Always include `triggers: [{"dashboardTrigger": {}}]` — without it, dashboard `run_workflow` widgets and manual API calls won't work
+- Load steps from `blueprints/{spec}.json` if a blueprint exists; otherwise build from action catalog
+- If using a blueprint, inline its `steps`, `triggers`, `connectionEnvs` arrays directly inside `jsonencode({...})` replacing `__CONNECTION_ID__` with the TF resource reference
+
+> **Note:** The shell-mode workflow below documents the same spec structure and API envelope. The JSON spec structure (steps, triggers, connectionEnvs, inputSchema) is the same regardless of mode — the terraform resource wraps it.
+
+---
+
+## Core Workflow — Shell Mode: Submit a Workflow Spec
 
 All API calls require headers: `DD-API-KEY`, `DD-APPLICATION-KEY`, `Content-Type: application/json`.
 
@@ -93,14 +151,28 @@ All API calls require headers: `DD-API-KEY`, `DD-APPLICATION-KEY`, `Content-Type
 }
 ```
 
-- **`steps`** — ordered actions; each has `name`, `actionId`, `connectionLabel`, `parameters`, optional `outboundEdges`
-- **`triggers`** — what starts the workflow: `securityTrigger`, `monitorTrigger`, `workflowTrigger`, `apiTrigger`, etc.
+- **`steps`** — ordered actions; each has `name`, `actionId`, `connectionLabel`, `parameters` (array — see below), optional `outboundEdges`
+- **`triggers`** — what starts the workflow; always use `dashboardTrigger` (see Trigger Types below)
 - **`connectionEnvs`** — maps a label to a real connection ID per environment
-- **`inputSchema`** — parameters the caller supplies at runtime
+- **`inputSchema`** — parameters the caller supplies at runtime; parameter `type` must be uppercase (`"STRING"`, `"INTEGER"`, `"BOOLEAN"`) not lowercase
 
 ### Step 1 — Prepare the spec
 
-Load a template from `examples/json/`, replace `__CONNECTION_ID__` with the real UUID in `connectionEnvs[].connections[].connectionId`.
+**If an example spec exists** in `blueprints/` for this workflow type, load it and replace `__CONNECTION_ID__` with the real UUID.
+
+**If no example spec exists**, build from the action catalog using the candidate's `purpose` field — see "Building from Action Catalog" below.
+
+The `triggers` array must contain exactly `[{"dashboardTrigger": {}}]`. Do not add other trigger types alongside it — the API rejects mixing `workflowTrigger` with any other trigger type, and `dashboardTrigger`-only workflows satisfy all dashboard embedding and manual invocation requirements.
+
+**Step parameters format:** `parameters` on each step must be an **array** of `{name, value}` objects, NOT a flat object map:
+```json
+"parameters": [
+  {"name": "region", "value": "us-east-1"},
+  {"name": "bucket", "value": "{{ Trigger.bucket_name }}"}
+]
+```
+
+**inputSchema parameter types** must be uppercase: `"STRING"`, `"INTEGER"`, `"BOOLEAN"` — lowercase is rejected by the API.
 
 ### Step 2 — Create the workflow
 
@@ -111,10 +183,10 @@ Load a template from `examples/json/`, replace `__CONNECTION_ID__` with the real
   "data": {
     "type": "workflows",
     "attributes": {
-      "name": "Workflow Name",
+      "name": "Workflow Name [{repo_id}]",
       "description": "...",
       "published": true,
-      "spec": { ...spec from template... }
+      "spec": { ...spec from example... }
     }
   }
 }
@@ -142,14 +214,41 @@ Check response for `data.id` (workflow UUID). Save for dashboard embedding.
 
 ## Trigger Types
 
-| Trigger key | When to use |
-|---|---|
-| `securityTrigger` | Cloud SIEM signal fires |
-| `monitorTrigger` | Monitor alert |
-| `apiTrigger` | Manual execution or API call |
-| `workflowTrigger` | Another workflow calls this one |
+**Always use `dashboardTrigger` only.** It supports manual execution, API calls, and dashboard Run Workflow widgets — covering all onboarding use cases.
 
-A workflow spec can include multiple trigger blocks. Workflows with `apiTrigger` can be triggered from dashboard `run_workflow` widgets.
+```json
+"triggers": [{"dashboardTrigger": {}}]
+```
+
+Do NOT mix `workflowTrigger` with any other trigger type — the API rejects this combination. Other trigger types (`securityTrigger`, `monitorTrigger`) can be used standalone for non-onboarding workflows but are not used in the standard onboarding pipeline.
+
+## Building from Action Catalog
+
+When repo-analyzer recommends a workflow with no matching example, build from the action catalog. Use `AWS-IAM-Disable-User.json` as structural reference for single-step, `ECS-Rollback-Leaderboard.json` for multi-step.
+
+### Step 1 — Select actions from catalog
+
+Read the `purpose` and `trigger` from the workflow candidate in `repo-analysis.json`, then read `.claude/skills/shared/actions-by-service/{service}.md`. Select the remediation action(s) — usually 1-2 for simple workflows, 3-4 for multi-step chains.
+
+### Step 2 — Map inputs to trigger context
+
+| Trigger type | Input source | Example |
+|---|---|---|
+| Security signal | `{{ Source.securityFinding.resource }}` | IAM username from SIEM |
+| Monitor alert | `{{ Source.monitor.* }}` or `inputSchema` | Service name from alert |
+| Manual/dashboard | `inputSchema` parameters | Operator-supplied values |
+
+### Step 3 — Compose the spec
+
+1. Define steps with action FQNs from catalog, wire `connectionLabel: "INTEGRATION_AWS"`; set `parameters` as an array of `{name, value}` objects
+2. Chain steps via `outboundEdges: [{"branchName": "main", "nextStepName": "..."}]`
+3. Set `triggers: [{"dashboardTrigger": {}}]`
+4. Define `connectionEnvs` with `__CONNECTION_ID__`
+5. Add `inputSchema` for any operator-supplied parameters; use uppercase types (`"STRING"`, `"INTEGER"`, `"BOOLEAN"`)
+
+### Step 4 — Submit
+
+Same API flow as Core Workflow sections above.
 
 ---
 
@@ -190,6 +289,10 @@ A workflow spec can include multiple trigger blocks. Workflows with `apiTrigger`
 | **Workflow execution timeout** | 7 days maximum |
 | **Security trigger resources** | `resourceConfiguration.*` fields vary by AWS resource type — verify field availability |
 | **Scheduled trigger** | Executes under service account context; no `inputSchema` parameters available |
+| **`dashboardTrigger` only** | Always use `triggers: [{"dashboardTrigger": {}}]` — do NOT mix with `workflowTrigger` (API rejects the combination). `dashboardTrigger` alone satisfies all dashboard embedding and manual invocation requirements |
+| **`parameters` is an array** | Step `parameters` must be `[{"name": "key", "value": "val"}, ...]` — NOT a flat `{"key": "val"}` object map |
+| **inputSchema types are uppercase** | `"STRING"`, `"INTEGER"`, `"BOOLEAN"` — lowercase (`"string"`, `"integer"`) is rejected by the API |
+| **`inputSchema.parameters` no `required` field** | The TF provider v3 Go client rejects `"required": true` (or any `required` field) in `inputSchema.parameters[]` with "object contains additional property". Only `name` and `type` are valid fields per parameter object. |
 
 ---
 
@@ -197,23 +300,22 @@ A workflow spec can include multiple trigger blocks. Workflows with `apiTrigger`
 
 - **Delegates to action-connections**: Connection creation is handled by the action-connections skill.
 - **Monitor IDs from dashboards**: Monitors created by the dashboards skill can be used as `monitorTrigger` sources.
-- **Dashboard embedding**: Include `apiTrigger` alongside primary trigger to enable dashboard `run_workflow` widgets.
+- **Dashboard embedding**: Use `triggers: [{"dashboardTrigger": {}}]` — dashboard trigger alone enables both `run_workflow` widget embedding and manual API invocation.
+- **Terraform mode:** Dashboards skill references workflow IDs via `datadog_workflow_automation.wf_{label}.id`. Connection wiring uses `templatefile()` or locals to substitute connection IDs.
+- **Shell mode:** Workflow UUIDs collected in `{RUN_DIR}/onboarding-uuids.json` for Phase 3 dashboard creation.
 - **Scorecard updates**: Use `com.datadoghq.dd.service_catalog.updateScorecardRuleOutcome` to mark pass/fail after remediation.
 
 ---
 
-## JSON Examples
+## Blueprints
 
-Seven workflow spec templates in `examples/json/`:
+Workflow blueprints in `blueprints/` serve as starting templates. The repo-analyzer recommends blueprints by matching them to detected AWS services, and this skill uses the recommended blueprint as the base for workflow creation.
+
+Two structural reference blueprints are included:
 
 | File | Pattern |
 |---|---|
-| `AWS-IAM-Disable-User.json` | Single-step security trigger — disable IAM user |
-| `AWS-IAM-Revoke-Permissions.json` | Revoke IAM permissions on security finding |
-| `AWS-EC2-Require-IMDS-v2_spec.json` | Enforce IMDSv2 on EC2 instances |
-| `ECS-Rollback-Leaderboard.json` | 4-step ECS rollback with data transform |
-| `workflow-remove-insecure-ingress.json` | Multi-step EC2 security group remediation |
-| `workflow-remove-insecure-ingress-simple.json` | Simplified ingress revocation |
-| `cloud-siem-waf-workflow-spec.json` | Cloud SIEM WAF workflow |
+| `AWS-IAM-Disable-User.json` | Single-step security + dashboard trigger — simplest possible workflow |
+| `ECS-Rollback-Leaderboard.json` | 4-step chain with data transform, monitor + dashboard triggers |
 
-All templates use `__CONNECTION_ID__` as the connection placeholder (except `cloud-siem-waf-workflow-spec.json` which uses `${connection_id}` for Terraform templatefile compatibility). All bare specs have been wrapped in `{ "name": "...", "spec": { ... } }` format.
+Additional OOTB Datadog workflow blueprints can be added to `blueprints/` to expand the recommendation pool. For any workflow not covered by an existing blueprint, build from the action catalog using these as structural guides.

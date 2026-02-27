@@ -1,0 +1,2071 @@
+{
+    "title": "TechStories Command Center",
+    "description": null,
+    "widgets": [
+        {
+            "id": 8484404280906213,
+            "definition": {
+                "title": "Karl's Kool Command Center",
+                "background_color": "purple",
+                "show_title": true,
+                "type": "group",
+                "layout_type": "ordered",
+                "widgets": []
+            },
+            "layout": {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 1
+            }
+        },
+        {
+            "id": 8093165851727689,
+            "definition": {
+                "type": "note",
+                "content": "I made this fancy app with a bunch of Datadog Actions. It includes most of the services critical to the TechStories architecture. I hope I didn't forget anything! ",
+                "background_color": "green",
+                "font_size": "18",
+                "text_align": "left",
+                "vertical_align": "center",
+                "show_tick": true,
+                "tick_pos": "50%",
+                "tick_edge": "bottom",
+                "has_padding": true
+            },
+            "layout": {
+                "x": 0,
+                "y": 0,
+                "width": 4,
+                "height": 2
+            }
+        },
+        {
+            "id": 807132439885837,
+            "definition": {
+                "type": "note",
+                "content": "TechStories architecture diagram...but we've added some new features since then...hopefully Datadog can help you figure out it!",
+                "background_color": "blue",
+                "font_size": "18",
+                "text_align": "left",
+                "vertical_align": "center",
+                "show_tick": true,
+                "tick_pos": "50%",
+                "tick_edge": "bottom",
+                "has_padding": true
+            },
+            "layout": {
+                "x": 8,
+                "y": 0,
+                "width": 4,
+                "height": 2
+            }
+        },
+        {
+            "id": 3699156010079422,
+            "definition": {
+                "type": "embedded_app",
+                "title": "TechStories Resource Overview",
+                "title_size": "13",
+                "title_align": "left",
+                "app_id": "__APP_ID_AWS_QUICK_REVIEW__"
+            },
+            "layout": {
+                "x": 0,
+                "y": 2,
+                "width": 6,
+                "height": 6
+            }
+        },
+        {
+            "id": 4162758260507380,
+            "definition": {
+                "type": "image",
+                "url": "https://ws-assets-prod-iad-r-iad-ed304a55c2ca1aee.s3.us-east-1.amazonaws.com/f298b112-0744-4fd0-b06f-6a0bb9e2d0f3/arch.png",
+                "sizing": "contain",
+                "margin": "lg",
+                "has_background": true,
+                "has_border": true,
+                "vertical_align": "center",
+                "horizontal_align": "center"
+            },
+            "layout": {
+                "x": 6,
+                "y": 2,
+                "width": 6,
+                "height": 6
+            }
+        },
+        {
+            "id": 530613622180452,
+            "definition": {
+                "title": "Overview",
+                "banner_img": "/static/images/integration_dashboard/amazon-ecs_hero_1.png",
+                "show_title": false,
+                "type": "group",
+                "layout_type": "ordered",
+                "widgets": [
+                    {
+                        "id": 7829712034619383,
+                        "definition": {
+                            "title": "ECS Events",
+                            "title_size": "16",
+                            "title_align": "left",
+                            "time": {
+                                "live_span": "1d"
+                            },
+                            "requests": [
+                                {
+                                    "query": {
+                                        "query_string": "source:amazon_ecs",
+                                        "data_source": "event_stream",
+                                        "event_size": "s"
+                                    },
+                                    "columns": [],
+                                    "response_format": "event_list"
+                                }
+                            ],
+                            "type": "list_stream"
+                        },
+                        "layout": {
+                            "x": 0,
+                            "y": 0,
+                            "width": 6,
+                            "height": 7
+                        }
+                    },
+                    {
+                        "id": 3744591110412533,
+                        "definition": {
+                            "type": "embedded_app",
+                            "title": "Manage ECS Tasks",
+                            "title_size": "13",
+                            "title_align": "left",
+                            "app_id": "__APP_ID_ECS_MANAGER__"
+                        },
+                        "layout": {
+                            "x": 6,
+                            "y": 0,
+                            "width": 6,
+                            "height": 5
+                        }
+                    },
+                    {
+                        "id": 7639362274123426,
+                        "definition": {
+                            "title": "Memory",
+                            "title_size": "16",
+                            "title_align": "left",
+                            "show_legend": false,
+                            "legend_layout": "auto",
+                            "legend_columns": [
+                                "avg",
+                                "min",
+                                "max",
+                                "value",
+                                "sum"
+                            ],
+                            "time": {
+                                "type": "live",
+                                "unit": "hour",
+                                "value": 4
+                            },
+                            "type": "timeseries",
+                            "requests": [
+                                {
+                                    "response_format": "timeseries",
+                                    "queries": [
+                                        {
+                                            "data_source": "metrics",
+                                            "name": "query1",
+                                            "query": "avg:aws.ecs.service.memory_utilization{*} by {service}"
+                                        }
+                                    ],
+                                    "formulas": [
+                                        {
+                                            "formula": "query1"
+                                        }
+                                    ],
+                                    "style": {
+                                        "palette": "dog_classic",
+                                        "line_type": "solid",
+                                        "line_width": "normal"
+                                    },
+                                    "display_type": "line"
+                                }
+                            ],
+                            "custom_links": []
+                        },
+                        "layout": {
+                            "x": 6,
+                            "y": 5,
+                            "width": 6,
+                            "height": 3
+                        }
+                    },
+                    {
+                        "id": 6307725424874614,
+                        "definition": {
+                            "title": "ECS Monitors",
+                            "type": "manage_status",
+                            "display_format": "countsAndList",
+                            "color_preference": "text",
+                            "hide_zero_counts": true,
+                            "show_status": true,
+                            "last_triggered_format": "relative",
+                            "query": "service:ecs",
+                            "sort": "status,asc",
+                            "count": 50,
+                            "start": 0,
+                            "summary_type": "monitors",
+                            "show_priority": false,
+                            "show_last_triggered": false
+                        },
+                        "layout": {
+                            "x": 0,
+                            "y": 7,
+                            "width": 4,
+                            "height": 4
+                        }
+                    },
+                    {
+                        "id": 2664924028205655,
+                        "definition": {
+                            "title": "Running services",
+                            "title_size": "16",
+                            "title_align": "left",
+                            "time": {
+                                "live_span": "1h"
+                            },
+                            "type": "query_value",
+                            "requests": [
+                                {
+                                    "response_format": "scalar",
+                                    "queries": [
+                                        {
+                                            "data_source": "metrics",
+                                            "name": "query1",
+                                            "query": "sum:aws.ecs.services{*}",
+                                            "aggregator": "avg"
+                                        }
+                                    ]
+                                }
+                            ],
+                            "autoscale": true,
+                            "custom_links": [],
+                            "precision": 2
+                        },
+                        "layout": {
+                            "x": 4,
+                            "y": 7,
+                            "width": 2,
+                            "height": 2
+                        }
+                    },
+                    {
+                        "id": 968183453171063,
+                        "definition": {
+                            "title": "CPU",
+                            "title_size": "16",
+                            "title_align": "left",
+                            "show_legend": false,
+                            "legend_layout": "auto",
+                            "legend_columns": [
+                                "avg",
+                                "min",
+                                "max",
+                                "value",
+                                "sum"
+                            ],
+                            "time": {
+                                "type": "live",
+                                "unit": "hour",
+                                "value": 4
+                            },
+                            "type": "timeseries",
+                            "requests": [
+                                {
+                                    "response_format": "timeseries",
+                                    "queries": [
+                                        {
+                                            "data_source": "metrics",
+                                            "name": "query1",
+                                            "query": "avg:aws.ecs.service.cpuutilization{*} by {service}"
+                                        }
+                                    ],
+                                    "formulas": [
+                                        {
+                                            "formula": "query1"
+                                        }
+                                    ],
+                                    "style": {
+                                        "palette": "dog_classic",
+                                        "line_type": "solid",
+                                        "line_width": "normal"
+                                    },
+                                    "display_type": "line"
+                                }
+                            ],
+                            "custom_links": []
+                        },
+                        "layout": {
+                            "x": 6,
+                            "y": 8,
+                            "width": 6,
+                            "height": 3
+                        }
+                    },
+                    {
+                        "id": 7275005359144730,
+                        "definition": {
+                            "type": "note",
+                            "content": "See more metrics in [ECS Explorer](https://app.datadoghq.com/orchestration/explorer/ecsTask)",
+                            "background_color": "orange",
+                            "font_size": "24",
+                            "text_align": "left",
+                            "vertical_align": "center",
+                            "show_tick": true,
+                            "tick_pos": "50%",
+                            "tick_edge": "right",
+                            "has_padding": true
+                        },
+                        "layout": {
+                            "x": 4,
+                            "y": 9,
+                            "width": 2,
+                            "height": 2
+                        }
+                    }
+                ]
+            },
+            "layout": {
+                "x": 0,
+                "y": 9,
+                "width": 12,
+                "height": 14
+            }
+        },
+        {
+            "id": 8215464813738771,
+            "definition": {
+                "title": "EC2",
+                "background_color": "vivid_orange",
+                "show_title": true,
+                "type": "group",
+                "layout_type": "ordered",
+                "widgets": [
+                    {
+                        "id": 8607361890843017,
+                        "definition": {
+                            "type": "embedded_app",
+                            "title": "EC2 Management Console",
+                            "title_size": "13",
+                            "title_align": "left",
+                            "app_id": "__APP_ID_EC2_MANAGER__"
+                        },
+                        "layout": {
+                            "x": 0,
+                            "y": 0,
+                            "width": 6,
+                            "height": 5
+                        }
+                    },
+                    {
+                        "id": 7013551454617003,
+                        "definition": {
+                            "title": "EC2 Monitors",
+                            "type": "manage_status",
+                            "display_format": "countsAndList",
+                            "color_preference": "text",
+                            "hide_zero_counts": true,
+                            "show_status": true,
+                            "last_triggered_format": "relative",
+                            "query": "service:ec2",
+                            "sort": "status,asc",
+                            "count": 50,
+                            "start": 0,
+                            "summary_type": "monitors",
+                            "show_priority": false,
+                            "show_last_triggered": false
+                        },
+                        "layout": {
+                            "x": 6,
+                            "y": 0,
+                            "width": 4,
+                            "height": 4
+                        }
+                    },
+                    {
+                        "id": 2905343461335202,
+                        "definition": {
+                            "title": "EC2 Host Map",
+                            "title_size": "16",
+                            "title_align": "left",
+                            "type": "hostmap",
+                            "requests": {
+                                "fill": {
+                                    "q": "avg:aws.ec2.status_check_failed{*} by {host}"
+                                }
+                            },
+                            "node_type": "host",
+                            "no_metric_hosts": false,
+                            "no_group_hosts": false,
+                            "group": [
+                                "region"
+                            ],
+                            "scope": [
+                                "*",
+                                "*",
+                                "*",
+                                "*",
+                                "*",
+                                "*",
+                                "*"
+                            ],
+                            "style": {
+                                "palette": "green_to_orange",
+                                "palette_flip": false
+                            }
+                        },
+                        "layout": {
+                            "x": 6,
+                            "y": 4,
+                            "width": 6,
+                            "height": 4
+                        }
+                    },
+                    {
+                        "id": 3969566922728283,
+                        "definition": {
+                            "title": "AutoScale Events",
+                            "title_size": "16",
+                            "title_align": "left",
+                            "requests": [
+                                {
+                                    "query": {
+                                        "query_string": "source:amazon_auto_scaling",
+                                        "data_source": "event_stream",
+                                        "event_size": "s"
+                                    },
+                                    "columns": [],
+                                    "response_format": "event_list"
+                                }
+                            ],
+                            "type": "list_stream"
+                        },
+                        "layout": {
+                            "x": 0,
+                            "y": 5,
+                            "width": 4,
+                            "height": 6
+                        }
+                    },
+                    {
+                        "id": 6919494942206421,
+                        "definition": {
+                            "title": "Active Instances by Type",
+                            "type": "treemap",
+                            "requests": [
+                                {
+                                    "response_format": "scalar",
+                                    "queries": [
+                                        {
+                                            "query": "sum:aws.ec2.host_ok{*} by {instance-type}",
+                                            "data_source": "metrics",
+                                            "name": "query1",
+                                            "aggregator": "max"
+                                        }
+                                    ],
+                                    "formulas": [
+                                        {
+                                            "formula": "query1"
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        "layout": {
+                            "x": 4,
+                            "y": 8,
+                            "width": 6,
+                            "height": 4
+                        }
+                    }
+                ]
+            },
+            "layout": {
+                "x": 0,
+                "y": 23,
+                "width": 12,
+                "height": 13
+            }
+        },
+        {
+            "id": 8384568070852239,
+            "definition": {
+                "title": "Lambda",
+                "title_align": "center",
+                "background_color": "yellow",
+                "show_title": true,
+                "type": "group",
+                "layout_type": "ordered",
+                "widgets": [
+                    {
+                        "id": 7947171530655169,
+                        "definition": {
+                            "title": "Invocations",
+                            "title_size": "16",
+                            "title_align": "center",
+                            "type": "query_value",
+                            "requests": [
+                                {
+                                    "response_format": "scalar",
+                                    "queries": [
+                                        {
+                                            "query": "sum:aws.lambda.invocations{*}.as_count()",
+                                            "data_source": "metrics",
+                                            "name": "query1",
+                                            "aggregator": "sum"
+                                        }
+                                    ]
+                                }
+                            ],
+                            "autoscale": true,
+                            "custom_unit": " ",
+                            "custom_links": [],
+                            "precision": 2,
+                            "timeseries_background": {
+                                "type": "bars",
+                                "yaxis": {}
+                            }
+                        },
+                        "layout": {
+                            "x": 0,
+                            "y": 0,
+                            "width": 3,
+                            "height": 2
+                        }
+                    },
+                    {
+                        "id": 4248834478978725,
+                        "definition": {
+                            "type": "note",
+                            "content": "An **invocation** is a single run of a Lambda function.\n\nInvocations are a good indicator of the amount of traffic flowing through your application. More specifically, it can tell you if a function stops executing, which can indicate problems upstream.\n\nThis widget shows the sum of all your **Lambda invocations** based on the selected timeframe. ",
+                            "background_color": "white",
+                            "font_size": "12",
+                            "text_align": "left",
+                            "vertical_align": "top",
+                            "show_tick": true,
+                            "tick_pos": "50%",
+                            "tick_edge": "left",
+                            "has_padding": true
+                        },
+                        "layout": {
+                            "x": 3,
+                            "y": 0,
+                            "width": 1,
+                            "height": 2
+                        }
+                    },
+                    {
+                        "id": 4900717749145142,
+                        "definition": {
+                            "title": "Error Rate",
+                            "title_size": "16",
+                            "title_align": "center",
+                            "type": "query_value",
+                            "requests": [
+                                {
+                                    "formulas": [
+                                        {
+                                            "formula": "query1 / query2 * 100"
+                                        }
+                                    ],
+                                    "conditional_formats": [
+                                        {
+                                            "comparator": ">",
+                                            "palette": "white_on_red",
+                                            "value": 5
+                                        },
+                                        {
+                                            "comparator": "<=",
+                                            "palette": "white_on_green",
+                                            "value": 5
+                                        }
+                                    ],
+                                    "response_format": "scalar",
+                                    "queries": [
+                                        {
+                                            "query": "sum:aws.lambda.errors{*}.as_count()",
+                                            "data_source": "metrics",
+                                            "name": "query1",
+                                            "aggregator": "sum"
+                                        },
+                                        {
+                                            "query": "sum:aws.lambda.invocations{*}.as_count()",
+                                            "data_source": "metrics",
+                                            "name": "query2",
+                                            "aggregator": "sum"
+                                        }
+                                    ]
+                                }
+                            ],
+                            "autoscale": true,
+                            "custom_unit": " %",
+                            "custom_links": [],
+                            "precision": 2,
+                            "timeseries_background": {
+                                "type": "bars"
+                            }
+                        },
+                        "layout": {
+                            "x": 4,
+                            "y": 0,
+                            "width": 3,
+                            "height": 2
+                        }
+                    },
+                    {
+                        "id": 2780837495996693,
+                        "definition": {
+                            "type": "note",
+                            "content": "Errors on your Lambda code, configuration limits, or lack of permissions can trigger errors. This widget shows the **error rates** from your Lambda function.",
+                            "background_color": "white",
+                            "font_size": "12",
+                            "text_align": "left",
+                            "vertical_align": "top",
+                            "show_tick": true,
+                            "tick_pos": "50%",
+                            "tick_edge": "left",
+                            "has_padding": true
+                        },
+                        "layout": {
+                            "x": 7,
+                            "y": 0,
+                            "width": 1,
+                            "height": 2
+                        }
+                    },
+                    {
+                        "id": 1663531380663669,
+                        "definition": {
+                            "title": "Lambda Monitors",
+                            "type": "manage_status",
+                            "display_format": "countsAndList",
+                            "color_preference": "text",
+                            "hide_zero_counts": true,
+                            "show_status": true,
+                            "last_triggered_format": "relative",
+                            "query": "service:lambda",
+                            "sort": "status,asc",
+                            "count": 50,
+                            "start": 0,
+                            "summary_type": "monitors",
+                            "show_priority": false,
+                            "show_last_triggered": false
+                        },
+                        "layout": {
+                            "x": 8,
+                            "y": 0,
+                            "width": 4,
+                            "height": 4
+                        }
+                    },
+                    {
+                        "id": 8264894883943372,
+                        "definition": {
+                            "title": "Cold Starts *",
+                            "title_size": "16",
+                            "title_align": "center",
+                            "type": "query_value",
+                            "requests": [
+                                {
+                                    "formulas": [
+                                        {
+                                            "formula": "query1"
+                                        }
+                                    ],
+                                    "conditional_formats": [
+                                        {
+                                            "comparator": ">",
+                                            "palette": "white_on_yellow",
+                                            "value": 0
+                                        }
+                                    ],
+                                    "response_format": "scalar",
+                                    "queries": [
+                                        {
+                                            "query": "sum:aws.lambda.enhanced.invocations{cold_start:true}.rollup(sum)",
+                                            "data_source": "metrics",
+                                            "name": "query1",
+                                            "aggregator": "sum"
+                                        }
+                                    ]
+                                }
+                            ],
+                            "autoscale": true,
+                            "custom_unit": " ",
+                            "text_align": "center",
+                            "custom_links": [],
+                            "precision": 2,
+                            "timeseries_background": {
+                                "type": "bars",
+                                "yaxis": {}
+                            }
+                        },
+                        "layout": {
+                            "x": 0,
+                            "y": 2,
+                            "width": 3,
+                            "height": 2
+                        }
+                    },
+                    {
+                        "id": 6484750053684340,
+                        "definition": {
+                            "type": "note",
+                            "content": "A **cold start** is the first request a Lambda function handles and can take time to initialize, which can impact latency for end users.",
+                            "background_color": "orange",
+                            "font_size": "12",
+                            "text_align": "left",
+                            "vertical_align": "top",
+                            "show_tick": true,
+                            "tick_pos": "50%",
+                            "tick_edge": "left",
+                            "has_padding": true
+                        },
+                        "layout": {
+                            "x": 3,
+                            "y": 2,
+                            "width": 1,
+                            "height": 2
+                        }
+                    },
+                    {
+                        "id": 4031794383925335,
+                        "definition": {
+                            "title": "Estimated Monthly Cost *",
+                            "title_size": "16",
+                            "title_align": "center",
+                            "time": {
+                                "live_span": "1mo"
+                            },
+                            "type": "query_value",
+                            "requests": [
+                                {
+                                    "conditional_formats": [
+                                        {
+                                            "comparator": ">",
+                                            "palette": "white_on_green",
+                                            "value": 0
+                                        }
+                                    ],
+                                    "response_format": "scalar",
+                                    "queries": [
+                                        {
+                                            "query": "sum:aws.lambda.enhanced.estimated_cost{*}.rollup(sum)",
+                                            "data_source": "metrics",
+                                            "name": "query1",
+                                            "aggregator": "sum"
+                                        }
+                                    ]
+                                }
+                            ],
+                            "autoscale": true,
+                            "custom_unit": "$",
+                            "custom_links": [],
+                            "precision": 3,
+                            "timeseries_background": {
+                                "type": "bars",
+                                "yaxis": {}
+                            }
+                        },
+                        "layout": {
+                            "x": 4,
+                            "y": 2,
+                            "width": 3,
+                            "height": 2
+                        }
+                    },
+                    {
+                        "id": 7034123546566084,
+                        "definition": {
+                            "type": "note",
+                            "content": "Enhanced Lambda metrics reveal the **estimated costs** of each function call, making it easy to track how you are spending their money.",
+                            "background_color": "green",
+                            "font_size": "12",
+                            "text_align": "left",
+                            "vertical_align": "top",
+                            "show_tick": true,
+                            "tick_pos": "50%",
+                            "tick_edge": "left",
+                            "has_padding": true
+                        },
+                        "layout": {
+                            "x": 7,
+                            "y": 2,
+                            "width": 1,
+                            "height": 2
+                        }
+                    },
+                    {
+                        "id": 60007120481287,
+                        "definition": {
+                            "type": "embedded_app",
+                            "title": "Lambda Function Manager",
+                            "title_size": "13",
+                            "title_align": "left",
+                            "app_id": "__APP_ID_LAMBDA_MANAGER__"
+                        },
+                        "layout": {
+                            "x": 4,
+                            "y": 4,
+                            "width": 6,
+                            "height": 5
+                        }
+                    }
+                ]
+            },
+            "layout": {
+                "x": 0,
+                "y": 36,
+                "width": 12,
+                "height": 1
+            }
+        },
+        {
+            "id": 3031492402421768,
+            "definition": {
+                "title": "DynamoDB",
+                "background_color": "vivid_purple",
+                "show_title": true,
+                "type": "group",
+                "layout_type": "ordered",
+                "widgets": [
+                    {
+                        "id": 233418859653260,
+                        "definition": {
+                            "type": "image",
+                            "url": "/static/images/logos/amazon-dynamodb_avatar.svg",
+                            "sizing": "fit",
+                            "margin": "large"
+                        },
+                        "layout": {
+                            "x": 0,
+                            "y": 0,
+                            "width": 4,
+                            "height": 2
+                        }
+                    },
+                    {
+                        "id": 802336121535760,
+                        "definition": {
+                            "type": "embedded_app",
+                            "title": "Manage DynamoDB",
+                            "title_size": "13",
+                            "title_align": "left",
+                            "app_id": "__APP_ID_DYNAMODB_MANAGER__"
+                        },
+                        "layout": {
+                            "x": 4,
+                            "y": 0,
+                            "width": 6,
+                            "height": 6
+                        }
+                    },
+                    {
+                        "id": 8383410709443823,
+                        "definition": {
+                            "title": "DynamoDB Monitors",
+                            "type": "manage_status",
+                            "display_format": "countsAndList",
+                            "color_preference": "text",
+                            "hide_zero_counts": true,
+                            "show_status": true,
+                            "last_triggered_format": "relative",
+                            "query": "service:dynamodb",
+                            "sort": "status,asc",
+                            "count": 50,
+                            "start": 0,
+                            "summary_type": "monitors",
+                            "show_priority": false,
+                            "show_last_triggered": false
+                        },
+                        "layout": {
+                            "x": 0,
+                            "y": 2,
+                            "width": 4,
+                            "height": 4
+                        }
+                    },
+                    {
+                        "id": 3311855757395547,
+                        "definition": {
+                            "title": "Requests latency per table (top 10)",
+                            "title_size": "16",
+                            "title_align": "left",
+                            "show_legend": false,
+                            "legend_size": "0",
+                            "time": {
+                                "live_span": "4h"
+                            },
+                            "type": "timeseries",
+                            "requests": [
+                                {
+                                    "response_format": "timeseries",
+                                    "queries": [
+                                        {
+                                            "data_source": "metrics",
+                                            "name": "query1",
+                                            "query": "avg:aws.dynamodb.successful_request_latency{*} by {tablename}"
+                                        }
+                                    ],
+                                    "formulas": [
+                                        {
+                                            "formula": "top(query1, 10, \"mean\", \"desc\")"
+                                        }
+                                    ],
+                                    "style": {
+                                        "palette": "dog_classic"
+                                    },
+                                    "display_type": "line"
+                                }
+                            ],
+                            "custom_links": []
+                        },
+                        "layout": {
+                            "x": 4,
+                            "y": 6,
+                            "width": 4,
+                            "height": 2
+                        }
+                    }
+                ]
+            },
+            "layout": {
+                "x": 0,
+                "y": 37,
+                "width": 12,
+                "height": 1
+            }
+        },
+        {
+            "id": 2517629606376602,
+            "definition": {
+                "title": "RDS",
+                "background_color": "vivid_blue",
+                "show_title": true,
+                "type": "group",
+                "layout_type": "ordered",
+                "widgets": [
+                    {
+                        "id": 3193928523481547,
+                        "definition": {
+                            "title": "Instances with Highest Write Latency",
+                            "title_size": "13",
+                            "title_align": "left",
+                            "show_legend": true,
+                            "legend_layout": "horizontal",
+                            "legend_columns": [
+                                "avg",
+                                "min",
+                                "max",
+                                "value",
+                                "sum"
+                            ],
+                            "type": "timeseries",
+                            "requests": [
+                                {
+                                    "formulas": [
+                                        {
+                                            "formula": "top10(query1)"
+                                        }
+                                    ],
+                                    "response_format": "timeseries",
+                                    "queries": [
+                                        {
+                                            "query": "avg:aws.rds.write_latency{*} by {dbinstanceidentifier}",
+                                            "data_source": "metrics",
+                                            "name": "query1"
+                                        }
+                                    ],
+                                    "style": {
+                                        "palette": "blue"
+                                    },
+                                    "display_type": "line"
+                                }
+                            ],
+                            "custom_links": []
+                        },
+                        "layout": {
+                            "x": 0,
+                            "y": 0,
+                            "width": 5,
+                            "height": 3
+                        }
+                    },
+                    {
+                        "id": 214200040322181,
+                        "definition": {
+                            "title": "Max Read Latency",
+                            "title_size": "13",
+                            "title_align": "center",
+                            "type": "query_value",
+                            "requests": [
+                                {
+                                    "formulas": [
+                                        {
+                                            "formula": "query1"
+                                        }
+                                    ],
+                                    "response_format": "scalar",
+                                    "queries": [
+                                        {
+                                            "query": "max:aws.rds.read_latency{*}",
+                                            "data_source": "metrics",
+                                            "name": "query1",
+                                            "aggregator": "max"
+                                        }
+                                    ]
+                                }
+                            ],
+                            "autoscale": true,
+                            "text_align": "center",
+                            "custom_links": [],
+                            "precision": 1
+                        },
+                        "layout": {
+                            "x": 5,
+                            "y": 0,
+                            "width": 2,
+                            "height": 1
+                        }
+                    },
+                    {
+                        "id": 1302844555967154,
+                        "definition": {
+                            "title": "RDS Monitors",
+                            "type": "manage_status",
+                            "display_format": "countsAndList",
+                            "color_preference": "text",
+                            "hide_zero_counts": true,
+                            "show_status": true,
+                            "last_triggered_format": "relative",
+                            "query": "service:rds",
+                            "sort": "status,asc",
+                            "count": 50,
+                            "start": 0,
+                            "summary_type": "monitors",
+                            "show_priority": false,
+                            "show_last_triggered": false
+                        },
+                        "layout": {
+                            "x": 7,
+                            "y": 0,
+                            "width": 4,
+                            "height": 4
+                        }
+                    },
+                    {
+                        "id": 3547634343038137,
+                        "definition": {
+                            "title": "Max Write Latency",
+                            "title_size": "13",
+                            "title_align": "center",
+                            "type": "query_value",
+                            "requests": [
+                                {
+                                    "response_format": "scalar",
+                                    "queries": [
+                                        {
+                                            "query": "max:aws.rds.write_latency{*}",
+                                            "data_source": "metrics",
+                                            "name": "query1",
+                                            "aggregator": "max"
+                                        }
+                                    ]
+                                }
+                            ],
+                            "autoscale": true,
+                            "text_align": "center",
+                            "custom_links": [],
+                            "precision": 1
+                        },
+                        "layout": {
+                            "x": 5,
+                            "y": 1,
+                            "width": 2,
+                            "height": 1
+                        }
+                    },
+                    {
+                        "id": 336670908007035,
+                        "definition": {
+                            "title": "Instances with Highest Read Latency",
+                            "title_size": "13",
+                            "title_align": "left",
+                            "show_legend": true,
+                            "legend_layout": "horizontal",
+                            "legend_columns": [
+                                "avg",
+                                "min",
+                                "max",
+                                "value",
+                                "sum"
+                            ],
+                            "type": "timeseries",
+                            "requests": [
+                                {
+                                    "formulas": [
+                                        {
+                                            "formula": "top10(query1)"
+                                        }
+                                    ],
+                                    "response_format": "timeseries",
+                                    "queries": [
+                                        {
+                                            "query": "avg:aws.rds.read_latency{*} by {dbinstanceidentifier}",
+                                            "data_source": "metrics",
+                                            "name": "query1"
+                                        }
+                                    ],
+                                    "style": {
+                                        "palette": "green"
+                                    },
+                                    "display_type": "line"
+                                }
+                            ],
+                            "custom_links": []
+                        },
+                        "layout": {
+                            "x": 0,
+                            "y": 3,
+                            "width": 5,
+                            "height": 3
+                        }
+                    },
+                    {
+                        "id": 6479941456227316,
+                        "definition": {
+                            "title": "Connections by Database",
+                            "title_size": "13",
+                            "title_align": "left",
+                            "show_legend": true,
+                            "legend_layout": "horizontal",
+                            "legend_columns": [
+                                "avg",
+                                "min",
+                                "max",
+                                "value",
+                                "sum"
+                            ],
+                            "type": "timeseries",
+                            "requests": [
+                                {
+                                    "formulas": [
+                                        {
+                                            "alias": "Connections",
+                                            "formula": "query1"
+                                        }
+                                    ],
+                                    "response_format": "timeseries",
+                                    "queries": [
+                                        {
+                                            "query": "sum:aws.rds.database_connections{*} by {dbinstanceidentifier}",
+                                            "data_source": "metrics",
+                                            "name": "query1"
+                                        }
+                                    ],
+                                    "style": {
+                                        "palette": "blue",
+                                        "line_type": "solid",
+                                        "line_width": "normal"
+                                    },
+                                    "display_type": "area"
+                                }
+                            ]
+                        },
+                        "layout": {
+                            "x": 5,
+                            "y": 4,
+                            "width": 7,
+                            "height": 3
+                        }
+                    }
+                ]
+            },
+            "layout": {
+                "x": 0,
+                "y": 38,
+                "width": 12,
+                "height": 1
+            }
+        },
+        {
+            "id": 3734622693483490,
+            "definition": {
+                "title": "Step Functions",
+                "background_color": "vivid_pink",
+                "show_title": true,
+                "type": "group",
+                "layout_type": "ordered",
+                "widgets": [
+                    {
+                        "id": 8354824541432316,
+                        "definition": {
+                            "type": "note",
+                            "content": "**State machine execution status**",
+                            "background_color": "vivid_pink",
+                            "font_size": "24",
+                            "text_align": "center",
+                            "show_tick": true,
+                            "tick_pos": "50%",
+                            "tick_edge": "bottom"
+                        },
+                        "layout": {
+                            "x": 0,
+                            "y": 0,
+                            "width": 4,
+                            "height": 1
+                        }
+                    },
+                    {
+                        "id": 7262579160875367,
+                        "definition": {
+                            "type": "embedded_app",
+                            "title": "Manage Step Functions",
+                            "title_size": "13",
+                            "title_align": "left",
+                            "app_id": "__APP_ID_STEP_FUNCTIONS_MANAGER__"
+                        },
+                        "layout": {
+                            "x": 4,
+                            "y": 0,
+                            "width": 8,
+                            "height": 3
+                        }
+                    },
+                    {
+                        "id": 6376710049456498,
+                        "definition": {
+                            "title": "Successful executions as a proportion of total executions",
+                            "title_size": "16",
+                            "title_align": "left",
+                            "show_legend": false,
+                            "legend_layout": "auto",
+                            "legend_columns": [
+                                "avg",
+                                "min",
+                                "max",
+                                "value",
+                                "sum"
+                            ],
+                            "type": "timeseries",
+                            "requests": [
+                                {
+                                    "formulas": [
+                                        {
+                                            "style": {
+                                                "palette": "dd20",
+                                                "palette_index": 17
+                                            },
+                                            "formula": "query1"
+                                        },
+                                        {
+                                            "style": {
+                                                "palette": "gray",
+                                                "palette_index": 0
+                                            },
+                                            "formula": "query2"
+                                        }
+                                    ],
+                                    "queries": [
+                                        {
+                                            "data_source": "metrics",
+                                            "name": "query1",
+                                            "query": "sum:aws.states.executions_succeeded{*}.as_rate()"
+                                        },
+                                        {
+                                            "data_source": "metrics",
+                                            "name": "query2",
+                                            "query": "sum:aws.states.executions_failed{*}.as_rate()"
+                                        }
+                                    ],
+                                    "response_format": "timeseries",
+                                    "style": {
+                                        "palette": "semantic",
+                                        "order_by": "values",
+                                        "line_type": "solid",
+                                        "line_width": "normal"
+                                    },
+                                    "display_type": "bars"
+                                }
+                            ],
+                            "markers": [
+                                {
+                                    "value": "y = 0",
+                                    "display_type": "error dashed"
+                                }
+                            ],
+                            "custom_links": []
+                        },
+                        "layout": {
+                            "x": 0,
+                            "y": 1,
+                            "width": 4,
+                            "height": 2
+                        }
+                    },
+                    {
+                        "id": 6620468702690115,
+                        "definition": {
+                            "type": "note",
+                            "content": "Each bar represents the **sum of all executions** at that timestamp and the pink shows the **proportion of successful executions** out of the total at that timestamp.",
+                            "background_color": "pink",
+                            "font_size": "12",
+                            "text_align": "left",
+                            "vertical_align": "center",
+                            "show_tick": true,
+                            "tick_pos": "25%",
+                            "tick_edge": "top",
+                            "has_padding": true
+                        },
+                        "layout": {
+                            "x": 0,
+                            "y": 3,
+                            "width": 4,
+                            "height": 1
+                        }
+                    },
+                    {
+                        "id": 5944183089728913,
+                        "definition": {
+                            "title": "StepFunction Monitors",
+                            "type": "manage_status",
+                            "display_format": "countsAndList",
+                            "color_preference": "text",
+                            "hide_zero_counts": true,
+                            "show_status": true,
+                            "last_triggered_format": "relative",
+                            "query": "service:stepfunctions",
+                            "sort": "status,asc",
+                            "count": 50,
+                            "start": 0,
+                            "summary_type": "monitors",
+                            "show_priority": false,
+                            "show_last_triggered": false
+                        },
+                        "layout": {
+                            "x": 4,
+                            "y": 3,
+                            "width": 4,
+                            "height": 4
+                        }
+                    }
+                ]
+            },
+            "layout": {
+                "x": 0,
+                "y": 39,
+                "width": 12,
+                "height": 1
+            }
+        },
+        {
+            "id": 3901147272132218,
+            "definition": {
+                "title": "SNS, SQS, Datastreams",
+                "background_color": "vivid_pink",
+                "show_title": true,
+                "type": "group",
+                "layout_type": "ordered",
+                "widgets": [
+                    {
+                        "id": 4865440933676756,
+                        "definition": {
+                            "type": "embedded_app",
+                            "title": "Manage SQS Queues",
+                            "title_size": "13",
+                            "title_align": "left",
+                            "app_id": "__APP_ID_SQS_MANAGER__"
+                        },
+                        "layout": {
+                            "x": 0,
+                            "y": 0,
+                            "width": 6,
+                            "height": 4
+                        }
+                    },
+                    {
+                        "id": 8024932762203730,
+                        "definition": {
+                            "title": "Data streaming topology for *",
+                            "title_size": "16",
+                            "title_align": "left",
+                            "type": "topology_map",
+                            "requests": [
+                                {
+                                    "request_type": "topology",
+                                    "query": {
+                                        "filters": [],
+                                        "service": "",
+                                        "data_source": "data_streams",
+                                        "query_string": "traffic_type:sqs queue:*"
+                                    }
+                                }
+                            ]
+                        },
+                        "layout": {
+                            "x": 6,
+                            "y": 0,
+                            "width": 6,
+                            "height": 4
+                        }
+                    },
+                    {
+                        "id": 4352260863144491,
+                        "definition": {
+                            "title": "Datastreams Monitors",
+                            "type": "manage_status",
+                            "display_format": "countsAndList",
+                            "color_preference": "text",
+                            "hide_zero_counts": true,
+                            "show_status": true,
+                            "last_triggered_format": "relative",
+                            "query": "service:datastreams",
+                            "sort": "status,asc",
+                            "count": 50,
+                            "start": 0,
+                            "summary_type": "monitors",
+                            "show_priority": false,
+                            "show_last_triggered": false
+                        },
+                        "layout": {
+                            "x": 2,
+                            "y": 4,
+                            "width": 8,
+                            "height": 4
+                        }
+                    }
+                ]
+            },
+            "layout": {
+                "x": 0,
+                "y": 40,
+                "width": 12,
+                "height": 1
+            }
+        },
+        {
+            "id": 8116238825129182,
+            "definition": {
+                "title": "S3 ",
+                "background_color": "vivid_green",
+                "show_title": true,
+                "type": "group",
+                "layout_type": "ordered",
+                "widgets": [
+                    {
+                        "id": 8281910572940849,
+                        "definition": {
+                            "type": "embedded_app",
+                            "title": "Explore S3 Files",
+                            "title_size": "13",
+                            "title_align": "left",
+                            "app_id": "__APP_ID_S3_EXPLORER__"
+                        },
+                        "layout": {
+                            "x": 0,
+                            "y": 0,
+                            "width": 6,
+                            "height": 6
+                        }
+                    },
+                    {
+                        "id": 2562230460726572,
+                        "definition": {
+                            "title": "S3 Monitors",
+                            "type": "manage_status",
+                            "display_format": "countsAndList",
+                            "color_preference": "text",
+                            "hide_zero_counts": true,
+                            "show_status": true,
+                            "last_triggered_format": "relative",
+                            "query": "service:s3",
+                            "sort": "status,asc",
+                            "count": 50,
+                            "start": 0,
+                            "summary_type": "monitors",
+                            "show_priority": false,
+                            "show_last_triggered": false
+                        },
+                        "layout": {
+                            "x": 6,
+                            "y": 0,
+                            "width": 4,
+                            "height": 3
+                        }
+                    },
+                    {
+                        "id": 4860352248524254,
+                        "definition": {
+                            "title": "Top sessions making requests to buckets",
+                            "title_size": "16",
+                            "title_align": "left",
+                            "type": "toplist",
+                            "requests": [
+                                {
+                                    "response_format": "scalar",
+                                    "queries": [
+                                        {
+                                            "data_source": "logs",
+                                            "name": "query1",
+                                            "indexes": [
+                                                "*"
+                                            ],
+                                            "compute": {
+                                                "aggregation": "count"
+                                            },
+                                            "search": {
+                                                "query": "@requestParameters.bucketName:* @eventCategory:Data"
+                                            },
+                                            "group_by": [
+                                                {
+                                                    "facet": "@userIdentity.session_name",
+                                                    "limit": 10,
+                                                    "sort": {
+                                                        "aggregation": "count",
+                                                        "order": "desc"
+                                                    }
+                                                }
+                                            ],
+                                            "storage": "hot"
+                                        }
+                                    ],
+                                    "formulas": [
+                                        {
+                                            "formula": "query1"
+                                        }
+                                    ],
+                                    "sort": {
+                                        "count": 10,
+                                        "order_by": [
+                                            {
+                                                "type": "formula",
+                                                "index": 0,
+                                                "order": "desc"
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        },
+                        "layout": {
+                            "x": 6,
+                            "y": 3,
+                            "width": 3,
+                            "height": 4
+                        }
+                    },
+                    {
+                        "id": 1501406628466696,
+                        "definition": {
+                            "title": "Data Events",
+                            "title_size": "16",
+                            "title_align": "left",
+                            "type": "toplist",
+                            "requests": [
+                                {
+                                    "response_format": "scalar",
+                                    "queries": [
+                                        {
+                                            "data_source": "logs",
+                                            "name": "query1",
+                                            "indexes": [
+                                                "*"
+                                            ],
+                                            "compute": {
+                                                "aggregation": "count"
+                                            },
+                                            "search": {
+                                                "query": "@requestParameters.bucketName:* @eventCategory:Data"
+                                            },
+                                            "group_by": [
+                                                {
+                                                    "facet": "@evt.name",
+                                                    "limit": 10,
+                                                    "sort": {
+                                                        "aggregation": "count",
+                                                        "order": "desc"
+                                                    }
+                                                }
+                                            ],
+                                            "storage": "hot"
+                                        }
+                                    ],
+                                    "formulas": [
+                                        {
+                                            "formula": "query1"
+                                        }
+                                    ],
+                                    "sort": {
+                                        "count": 10,
+                                        "order_by": [
+                                            {
+                                                "type": "formula",
+                                                "index": 0,
+                                                "order": "desc"
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        },
+                        "layout": {
+                            "x": 9,
+                            "y": 3,
+                            "width": 3,
+                            "height": 4
+                        }
+                    },
+                    {
+                        "id": 821039218095125,
+                        "definition": {
+                            "title": "Requests to Buckets",
+                            "title_size": "16",
+                            "title_align": "left",
+                            "show_legend": false,
+                            "type": "timeseries",
+                            "requests": [
+                                {
+                                    "response_format": "timeseries",
+                                    "queries": [
+                                        {
+                                            "data_source": "logs",
+                                            "name": "query1",
+                                            "indexes": [
+                                                "*"
+                                            ],
+                                            "compute": {
+                                                "aggregation": "count"
+                                            },
+                                            "search": {
+                                                "query": "@eventCategory:Data"
+                                            },
+                                            "group_by": [
+                                                {
+                                                    "facet": "@requestParameters.bucketName",
+                                                    "limit": 10,
+                                                    "sort": {
+                                                        "aggregation": "count",
+                                                        "order": "desc"
+                                                    }
+                                                }
+                                            ],
+                                            "storage": "hot"
+                                        }
+                                    ],
+                                    "style": {
+                                        "palette": "dog_classic",
+                                        "line_type": "solid",
+                                        "line_width": "normal"
+                                    },
+                                    "display_type": "line"
+                                }
+                            ],
+                            "yaxis": {
+                                "scale": "linear",
+                                "label": "",
+                                "include_zero": true,
+                                "min": "auto",
+                                "max": "auto"
+                            }
+                        },
+                        "layout": {
+                            "x": 0,
+                            "y": 6,
+                            "width": 6,
+                            "height": 2
+                        }
+                    }
+                ]
+            },
+            "layout": {
+                "x": 0,
+                "y": 41,
+                "width": 12,
+                "height": 9
+            }
+        },
+        {
+            "id": 4792921603073659,
+            "definition": {
+                "title": "App and API Protection",
+                "background_color": "yellow",
+                "show_title": true,
+                "type": "group",
+                "layout_type": "ordered",
+                "widgets": [
+                    {
+                        "id": 1202344895807655,
+                        "definition": {
+                            "title": "Exposed Services",
+                            "title_size": "16",
+                            "title_align": "left",
+                            "show_legend": true,
+                            "type": "timeseries",
+                            "requests": [
+                                {
+                                    "formulas": [
+                                        {
+                                            "formula": "query"
+                                        }
+                                    ],
+                                    "queries": [
+                                        {
+                                            "name": "query",
+                                            "data_source": "app_sec_spans",
+                                            "search": {
+                                                "query": "@appsec.security_activity:attack_attempt.security_scanner -@appsec.security_activity:attack_attempt.commercial_scanner"
+                                            },
+                                            "compute": {
+                                                "aggregation": "count"
+                                            },
+                                            "indexes": [
+                                                "*"
+                                            ],
+                                            "group_by": [
+                                                {
+                                                    "facet": "service",
+                                                    "sort": {
+                                                        "aggregation": "count",
+                                                        "order": "desc"
+                                                    },
+                                                    "limit": 100,
+                                                    "should_exclude_missing": false
+                                                }
+                                            ]
+                                        }
+                                    ],
+                                    "response_format": "timeseries",
+                                    "style": {
+                                        "palette": "dog_classic",
+                                        "line_type": "solid",
+                                        "line_width": "normal"
+                                    },
+                                    "display_type": "bars"
+                                }
+                            ]
+                        },
+                        "layout": {
+                            "x": 0,
+                            "y": 0,
+                            "width": 4,
+                            "height": 4
+                        }
+                    },
+                    {
+                        "id": 6199779929285850,
+                        "definition": {
+                            "title": "Account Activity",
+                            "title_size": "16",
+                            "title_align": "left",
+                            "show_legend": true,
+                            "type": "timeseries",
+                            "requests": [
+                                {
+                                    "formulas": [
+                                        {
+                                            "alias": "Login success",
+                                            "style": {
+                                                "palette": "green",
+                                                "palette_index": 4
+                                            },
+                                            "formula": "query1"
+                                        },
+                                        {
+                                            "alias": "Login Failure",
+                                            "style": {
+                                                "palette": "warm",
+                                                "palette_index": 5
+                                            },
+                                            "formula": "query2"
+                                        },
+                                        {
+                                            "alias": "Suggested Login Failure",
+                                            "style": {
+                                                "palette": "gray",
+                                                "palette_index": 1
+                                            },
+                                            "formula": "query3"
+                                        },
+                                        {
+                                            "alias": "Suggested Login Success",
+                                            "style": {
+                                                "palette": "gray",
+                                                "palette_index": 0
+                                            },
+                                            "formula": "query4"
+                                        }
+                                    ],
+                                    "queries": [
+                                        {
+                                            "data_source": "app_sec_spans",
+                                            "name": "query1",
+                                            "indexes": [
+                                                "*"
+                                            ],
+                                            "compute": {
+                                                "aggregation": "count"
+                                            },
+                                            "group_by": [],
+                                            "search": {
+                                                "query": "@appsec.security_activity:business_logic.users.login.success"
+                                            }
+                                        },
+                                        {
+                                            "data_source": "app_sec_spans",
+                                            "name": "query2",
+                                            "indexes": [
+                                                "*"
+                                            ],
+                                            "compute": {
+                                                "aggregation": "count"
+                                            },
+                                            "group_by": [],
+                                            "search": {
+                                                "query": "@appsec.security_activity:business_logic.users.login.failure"
+                                            }
+                                        },
+                                        {
+                                            "name": "query3",
+                                            "data_source": "spans",
+                                            "search": {
+                                                "query": "@_top_level:1 @_dd.appsec.recommended.business_logic:users.login.failure -@appsec.category:business_logic"
+                                            },
+                                            "indexes": [
+                                                "*"
+                                            ],
+                                            "group_by": [],
+                                            "compute": {
+                                                "aggregation": "count",
+                                                "metric": "count"
+                                            },
+                                            "storage": "hot"
+                                        },
+                                        {
+                                            "name": "query4",
+                                            "data_source": "spans",
+                                            "search": {
+                                                "query": "@_top_level:1 @_dd.appsec.recommended.business_logic:users.login.success -@appsec.category:business_logic"
+                                            },
+                                            "indexes": [
+                                                "*"
+                                            ],
+                                            "group_by": [],
+                                            "compute": {
+                                                "aggregation": "count",
+                                                "metric": "count"
+                                            },
+                                            "storage": "hot"
+                                        }
+                                    ],
+                                    "response_format": "timeseries",
+                                    "style": {
+                                        "palette": "dog_classic",
+                                        "order_by": "values",
+                                        "color_order": "shuffled",
+                                        "line_type": "solid",
+                                        "line_width": "normal"
+                                    },
+                                    "display_type": "bars"
+                                },
+                                {
+                                    "formulas": [
+                                        {
+                                            "alias": "Signals",
+                                            "formula": "query1"
+                                        }
+                                    ],
+                                    "queries": [
+                                        {
+                                            "data_source": "security_signals",
+                                            "name": "query1",
+                                            "indexes": [
+                                                "*"
+                                            ],
+                                            "compute": {
+                                                "aggregation": "count"
+                                            },
+                                            "group_by": [],
+                                            "search": {
+                                                "query": "@workflow.rule.type:\"Application Security\" category:account_takeover"
+                                            }
+                                        }
+                                    ],
+                                    "response_format": "timeseries",
+                                    "display_type": "overlay"
+                                }
+                            ],
+                            "markers": [],
+                            "custom_links": [
+                                {
+                                    "label": "See documentation",
+                                    "link": "https://docs.datadoghq.com/security/default_rules/appsec-ato-bf/"
+                                }
+                            ]
+                        },
+                        "layout": {
+                            "x": 4,
+                            "y": 0,
+                            "width": 4,
+                            "height": 4
+                        }
+                    },
+                    {
+                        "id": 7027874357096248,
+                        "definition": {
+                            "title": "Custom Security Traces",
+                            "title_size": "16",
+                            "title_align": "left",
+                            "show_legend": true,
+                            "legend_layout": "auto",
+                            "legend_columns": [
+                                "avg",
+                                "min",
+                                "max",
+                                "value",
+                                "sum"
+                            ],
+                            "type": "timeseries",
+                            "requests": [
+                                {
+                                    "formulas": [
+                                        {
+                                            "formula": "query"
+                                        }
+                                    ],
+                                    "queries": [
+                                        {
+                                            "data_source": "app_sec_spans",
+                                            "name": "query",
+                                            "indexes": [
+                                                "*"
+                                            ],
+                                            "compute": {
+                                                "aggregation": "count"
+                                            },
+                                            "group_by": [
+                                                {
+                                                    "facet": "@appsec.type",
+                                                    "limit": 100,
+                                                    "sort": {
+                                                        "order": "desc",
+                                                        "aggregation": "count"
+                                                    }
+                                                }
+                                            ],
+                                            "search": {
+                                                "query": "@appsec.security_activity:business_logic.* -@appsec.security_activity:business_logic.users.*"
+                                            }
+                                        }
+                                    ],
+                                    "response_format": "timeseries",
+                                    "style": {
+                                        "palette": "dog_classic",
+                                        "line_type": "solid",
+                                        "line_width": "normal"
+                                    },
+                                    "display_type": "bars"
+                                }
+                            ]
+                        },
+                        "layout": {
+                            "x": 8,
+                            "y": 0,
+                            "width": 4,
+                            "height": 4
+                        }
+                    },
+                    {
+                        "id": 3847820309036136,
+                        "definition": {
+                            "title": "Security Traces by Country",
+                            "title_size": "16",
+                            "title_align": "left",
+                            "type": "geomap",
+                            "requests": [
+                                {
+                                    "queries": [
+                                        {
+                                            "data_source": "app_sec_spans",
+                                            "name": "query1",
+                                            "indexes": [
+                                                "*"
+                                            ],
+                                            "compute": {
+                                                "aggregation": "count"
+                                            },
+                                            "group_by": [
+                                                {
+                                                    "facet": "@http.client_ip_details.country.iso_code",
+                                                    "limit": 1000,
+                                                    "sort": {
+                                                        "order": "desc",
+                                                        "aggregation": "count"
+                                                    }
+                                                }
+                                            ],
+                                            "search": {
+                                                "query": "@appsec.category:(attack_attempt OR vulnerability_triggers)"
+                                            }
+                                        }
+                                    ],
+                                    "response_format": "scalar",
+                                    "formulas": [
+                                        {
+                                            "formula": "query1"
+                                        }
+                                    ],
+                                    "sort": {
+                                        "count": 1000,
+                                        "order_by": [
+                                            {
+                                                "type": "formula",
+                                                "index": 0,
+                                                "order": "desc"
+                                            }
+                                        ]
+                                    }
+                                }
+                            ],
+                            "style": {
+                                "palette": "YlOrRd",
+                                "palette_flip": true
+                            },
+                            "view": {
+                                "focus": "WORLD"
+                            }
+                        },
+                        "layout": {
+                            "x": 0,
+                            "y": 4,
+                            "width": 12,
+                            "height": 4
+                        }
+                    }
+                ]
+            },
+            "layout": {
+                "x": 0,
+                "y": 50,
+                "width": 12,
+                "height": 1
+            }
+        }
+    ],
+    "template_variables": [{"name": "team", "prefix": "team", "available_values": [], "default": "*"}],
+    "layout_type": "ordered",
+    "notify_list": [],
+    "reflow_type": "fixed"
+}

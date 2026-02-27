@@ -1,0 +1,54 @@
+{
+  "id": "8474f02e-c3a7-4466-9eb9-629b2f155820",
+  "name": "Migrate EBS Volume from GP2 to GP3",
+  "description": "headless workflow migrate EBS Volume from GP2 to GP3 template",
+  "categories": [],
+  "highlightedBundles": [],
+  "userTags": [],
+  "systemTags": ["internal"],
+  "spec": {
+    "steps": [
+      {
+        "name": "Modify_volume",
+        "parameters": [
+          {
+            "name": "volumeType",
+            "value": "gp3"
+          },
+          {
+            "name": "region",
+            "value": "{{ Trigger.region }}"
+          },
+          {
+            "name": "volumeId",
+            "value": "{{ Trigger.volumeId }}"
+          }
+        ],
+        "actionId": "com.datadoghq.aws.ebs.modifyVolume",
+        "connectionLabel": "INTEGRATION_AWS"
+      }
+    ],
+    "triggers": [
+      {
+        "workflowTrigger": {},
+        "startStepNames": ["Modify_volume"]
+      }
+    ],
+    "inputSchema": {
+      "parameters": [
+        {
+          "name": "region",
+          "type": "STRING",
+          "label": "Region"
+        },
+        {
+          "name": "volumeId",
+          "type": "STRING",
+          "label": "Volume ID",
+          "description": "ID of the volume."
+        }
+      ]
+    }
+    },
+    "createdAt": "2025-03-04T14:17:32Z"
+}

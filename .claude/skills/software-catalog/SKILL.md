@@ -29,11 +29,10 @@ Key facts:
 
 ### Dependency Diagram
 
-```
-software-catalog (standalone)
-       |
-       +---> dashboards (link services to SLO/monitor widgets)
-       +---> app-builder (surface catalog data in internal tools)
+```mermaid
+graph TD
+    SC[software-catalog standalone] --> D[dashboards]
+    SC --> AB[app-builder]
 ```
 
 No prerequisites from other skills.
@@ -51,19 +50,6 @@ Before executing, fetch current API and product documentation:
 | Setup guide | `https://docs.datadoghq.com/software_catalog/set_up.md` |
 | Terraform provider | TF MCP → `datadog_software_catalog` |
 | Official schemas | `https://github.com/DataDog/schema/tree/main/software-catalog` |
-
----
-
-## Output Format Selection
-
-Read `preferred_output_format` from `.claude/context/repo-analysis.json`:
-
-| `preferred_output_format` | What happens |
-|---|---|
-| `terraform` | Claude queries Terraform MCP for provider docs + generates `.tf` modules in `datadog-resources/terraform/` (uses v2.2 schema with kebab-case) |
-| `shell` | Claude executes `curl` commands directly via Bash tool (uses v3 JSON with camelCase) |
-
-**Note:** Terraform uses v2.2 schema (`service-url`); shell/API uses v3 (`serviceURL`). Both populate the same catalog.
 
 ---
 
@@ -87,17 +73,88 @@ Read `preferred_output_format` from `.claude/context/repo-analysis.json`:
 
 ---
 
-## Core Workflow: Teams First, Then Entities
+## Output Mode
+
+Read `preferred_output_format` from `{RUN_DIR}/repo-analysis.json` (when orchestrated) or `{repo_path}/repo-analysis.json` (standalone):
+
+| `preferred_output_format` | Execution path | Output location |
+|---|---|---|
+| `terraform` | Query Terraform MCP for resource schemas, generate `.tf` files (v2.2 schema, kebab-case) | `{RUN_DIR}/terraform/catalog.tf` |
+| `shell` | Execute `curl` commands directly via Bash tool (v3 API, camelCase) | `{RUN_DIR}/manifest.json` (append entry per resource) |
+
+The two Core Workflow sections below correspond to each mode.
+
+---
+
+## Core Workflow — Terraform Mode: Teams and Entities
+
+> **CRITICAL — when invoked as a Phase 2 subagent:** Write ONLY to `{RUN_DIR}/terraform-staging/catalog/catalog.tf`. Do NOT run `terraform init`, `terraform validate`, `terraform plan`, or `terraform apply`. The orchestrator owns the single consolidated apply after all Phase 2 subagents complete.
+
+### Phase 0 — Pre-flight existence checks
+
+Before generating any `.tf` output, check each team and entity against the live Datadog API. Only emit resources for items that do **not** already exist.
+
+**Check teams:**
+```bash
+curl -s \
+  -H "DD-API-KEY: ${DD_API_KEY}" \
+  -H "DD-APPLICATION-KEY: ${DD_APP_KEY}" \
+  "https://api.datadoghq.com/api/v2/teams?filter[keyword]={handle}" \
+| jq --arg h "{handle}" '[.data[] | select(.attributes.handle == $h)] | length'
+```
+If result > 0 → skip this team. Log: `# SKIPPED: team {handle} already exists in Datadog`.
+
+**Check entities:**
+```bash
+curl -s \
+  -H "DD-API-KEY: ${DD_API_KEY}" \
+  -H "DD-APPLICATION-KEY: ${DD_APP_KEY}" \
+  "https://api.datadoghq.com/api/v2/catalog/entity?filter[ref]={kind}:{name}" \
+| jq '.data | length'
+```
+If result > 0 → skip this entity. Log: `# SKIPPED: {kind}:{name} already exists in Datadog`.
+
+Proceed to Steps 1–3 using only the **non-existing** teams and entities. If **all** items already exist, write a comment-only `catalog.tf` noting everything is registered and skip resource generation.
+
+### Phase 1–3 — Generate Terraform
+
+1. **Query TF MCP** for resource schemas: `datadog_team`, `datadog_software_catalog`
+2. **Generate `.tf` file** at `{RUN_DIR}/terraform-staging/catalog/catalog.tf`. Begin with a pre-flight summary comment block:
+   ```hcl
+   # === SOFTWARE CATALOG: Pre-flight check results ===
+   # EXISTING (skipped): team:backend-team, service:my-api
+   # NEW (to be created): team:new-team, service:new-service
+   ```
+   Then emit `datadog_team` and `datadog_software_catalog` resources for non-existing items only.
+3. **Important schema difference:** Terraform uses v2.2 schema with kebab-case field names (e.g., `service-url`) — the MCP docs will reflect this. The shell-mode workflow below uses v3 API with camelCase (e.g., `serviceURL`). Both populate the same catalog.
+
+---
+
+## Core Workflow — Shell Mode: Teams First, Then Entities
 
 All API calls require headers: `DD-API-KEY`, `DD-APPLICATION-KEY`, `Content-Type: application/json`.
 
 ### Step 1 — Create teams
 
-`POST /api/v2/team` for each unique team handle. This is idempotent: 409 = already exists = success.
+Read `teams` from `{RUN_DIR}/repo-analysis.json` (when orchestrated) or `{repo_path}/repo-analysis.json` (standalone). If the `teams` array is non-empty, create each `teams[].handle` via `POST /api/v2/team`. If `teams` is empty or absent, fall back to creating a single `{project}-team`. This is idempotent: 409 = already exists = success.
 
 ### Step 2 — Register entities
 
-`POST /api/v2/catalog/entity` with v3 JSON body for each entity. This is an upsert: 200, 201, 202 all mean success.
+Set `metadata.owner` per the team→service mapping from `teams[].services`. Services not listed in any team's `services` array get the first team (or the fallback `{project}-team`).
+
+**Skip-if-exists check:** Before registering each entity, check whether a catalog entity with that `metadata.name` already exists:
+
+```bash
+source .env && curl -s \
+  -H "DD-API-KEY: ${DD_API_KEY}" \
+  -H "DD-APPLICATION-KEY: ${DD_APP_KEY}" \
+  "https://api.datadoghq.com/api/v2/catalog/entity?filter[ref]=service:{name}" \
+| jq '.data | length'
+```
+
+If the result is `> 0`, log `"Skipping {name} — already exists in catalog"` and move on. Only register entities that do not yet exist.
+
+`POST /api/v2/catalog/entity` with v3 JSON body for each new entity. 200, 201, 202 all mean success.
 
 v3 entity structure:
 ```json
@@ -160,6 +217,7 @@ v3 entity structure:
 | **additionalOwners** | Enables multi-ownership: `metadata.additionalOwners[].type` can be `team` or `operator` |
 | **Discovered vs user-defined** | Upserting a full v3 entity with same name as APM-discovered service enriches and converts it |
 | **Namespace** | Optional, defaults to `"default"` — enables multi-tenant catalog in same org |
+| **Terraform pre-flight uses live API** | `DD_API_KEY` and `DD_APP_KEY` must be set in the shell before running the skill in terraform mode |
 
 ---
 

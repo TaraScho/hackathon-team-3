@@ -1,0 +1,95 @@
+{
+    "id": "aws-iam-enrich-user-details",
+    "name": "Retrieve and Enrich AWS IAM User Details",
+    "description": "Get details about an AWS IAM user based on a Cloud SIEM security signal in order to inform its investigation/analysis.",
+    "categories": [
+        "SECURITY"
+    ],
+    "highlightedBundles": [
+        "com.datadoghq.aws.iam"
+    ],
+    "userTags": [
+        "source:alert"
+    ],
+    "spec": {
+        "steps": [
+            {
+                "actionId": "com.datadoghq.dd.cloudsecurity.getSecuritySignal",
+                "name": "Get_security_signal",
+                "outboundEdges": [
+                    {
+                        "branchName": "main",
+                        "nextStepName": "Branch_workflow_from_condition"
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "signalId",
+                        "value": "{{ Source.securitySignal.id }}"
+                    }
+                ]
+            },
+            {
+                "actionId": "com.datadoghq.core.if",
+                "name": "Branch_workflow_from_condition",
+                "outboundEdges": [
+                    {
+                        "branchName": "true",
+                        "nextStepName": "Get_user"
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "conditions",
+                        "value": [
+                            {
+                                "comparisonOperator": "eq",
+                                "leftValue": "{{ Steps.Get_security_signal.securitySignal.custom.userIdentity.type }}",
+                                "rightValue": "IAMUser"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "joinOperator",
+                        "value": "and"
+                    }
+                ]
+            },
+            {
+                "actionId": "com.datadoghq.aws.iam.getUser",
+                "name": "Get_user",
+                "outboundEdges": [
+                    {
+                        "branchName": "main",
+                        "nextStepName": "List_access_keys"
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "userName",
+                        "value": "{{ Steps.Get_security_signal.securitySignal.custom.usr.name }}"
+                    }
+                ]
+            },
+            {
+                "actionId": "com.datadoghq.aws.iam.listAccessKeys",
+                "name": "List_access_keys",
+                "parameters": [
+                    {
+                        "name": "userName",
+                        "value": "{{ Steps.Get_security_signal.securitySignal.custom.usr.name }}"
+                    }
+                ]
+            }
+        ],
+        "triggers": [
+            {
+                "workflowTrigger": {},
+                "startStepNames": [
+                    "Get_security_signal"
+                ]
+            }
+        ]
+    },
+    "createdAt": "2023-10-04T14:59:22Z"
+}

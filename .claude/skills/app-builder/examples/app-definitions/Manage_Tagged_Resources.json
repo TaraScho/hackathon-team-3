@@ -1,0 +1,274 @@
+{
+  "queries": [
+    {
+      "id": "2d8ac5e6-ebd0-462c-ab3e-a374ee224714",
+      "name": "getResourcesByTags0",
+      "type": "action",
+      "properties": {
+        "onlyTriggerManually": false,
+        "showToastOnError": true,
+        "spec": {
+          "fqn": "com.datadoghq.aws.resourcetagging.getResourcesByTags",
+          "inputs": {
+            "filters": "${[{key: 'service', values: [tagValueInput.value || '__SERVICE_TAG_VALUE__']}]}",
+            "region": "${regionSelector.value || 'us-east-1'}",
+            "resourceTypes": ["__RESOURCE_TYPES__"]
+          },
+          "connectionId": "__CONNECTION_ID__"
+        }
+      }
+    },
+    {
+      "id": "6b61918f-73e9-445f-bdfd-2bab23965a80",
+      "name": "untagResources0",
+      "type": "action",
+      "properties": {
+        "onlyTriggerManually": true,
+        "showToastOnError": true,
+        "spec": {
+          "fqn": "com.datadoghq.aws.resourcetagging.untagResources",
+          "inputs": {
+            "region": "${regionSelector.value || 'us-east-1'}",
+            "resourceArns": [
+              "${taggedResourcesTable.selectedRowData.resourceArn}"
+            ],
+            "tagKeys": [
+              "service"
+            ]
+          },
+          "connectionId": "__CONNECTION_ID__"
+        }
+      }
+    }
+  ],
+  "components": [
+    {
+      "events": [],
+      "name": "grid0",
+      "properties": {
+        "children": [
+          {
+            "events": [],
+            "name": "gridCell0",
+            "properties": {
+              "children": [
+                {
+                  "events": [],
+                  "name": "tagKeyInput",
+                  "properties": {
+                    "defaultValue": "service",
+                    "isDisabled": true,
+                    "isVisible": true,
+                    "label": "Tag Key",
+                    "placeholder": "e.g. service"
+                  },
+                  "type": "textInput"
+                }
+              ],
+              "isVisible": "true",
+              "layout": {
+                "default": {
+                  "height": 7,
+                  "width": 4,
+                  "x": 0,
+                  "y": 0
+                }
+              }
+            },
+            "type": "gridCell"
+          },
+          {
+            "events": [],
+            "name": "gridCell1",
+            "properties": {
+              "children": [
+                {
+                  "events": [],
+                  "name": "tagValueInput",
+                  "properties": {
+                    "defaultValue": "__SERVICE_TAG_VALUE__",
+                    "isDisabled": false,
+                    "isVisible": true,
+                    "label": "Service Name",
+                    "placeholder": "e.g. my-service"
+                  },
+                  "type": "textInput"
+                }
+              ],
+              "isVisible": "true",
+              "layout": {
+                "default": {
+                  "height": 7,
+                  "width": 4,
+                  "x": 0,
+                  "y": 10
+                }
+              }
+            },
+            "type": "gridCell"
+          },
+          {
+            "events": [],
+            "name": "gridCell2",
+            "properties": {
+              "children": [
+                {
+                  "events": [],
+                  "name": "regionSelector",
+                  "properties": {
+                    "defaultValue": "us-east-1",
+                    "isClearable": "false",
+                    "isDisabled": false,
+                    "isMultiselect": "false",
+                    "isVisible": true,
+                    "label": "AWS Region",
+                    "options": "${[\n  {label: 'US East (N. Virginia)', value: 'us-east-1'},\n  {label: 'US West (Oregon)', value: 'us-west-2'},\n  {label: 'EU (Ireland)', value: 'eu-west-1'},\n  {label: 'Asia Pacific (Sydney)', value: 'ap-southeast-2'}\n]}",
+                    "placeholder": "Select value"
+                  },
+                  "type": "select"
+                }
+              ],
+              "isVisible": "true",
+              "layout": {
+                "default": {
+                  "height": 7,
+                  "width": 4,
+                  "x": 0,
+                  "y": 20
+                }
+              }
+            },
+            "type": "gridCell"
+          },
+          {
+            "events": [],
+            "name": "gridCell3",
+            "properties": {
+              "children": [
+                {
+                  "events": [],
+                  "name": "taggedResourcesTable",
+                  "properties": {
+                    "autoUpdateColumns": true,
+                    "columns": [
+                      {
+                        "dataPath": "resourceArn",
+                        "header": "Resource ARN",
+                        "id": "c43d655e-b4ad-45c9-9549-0996d0005c13",
+                        "isFilterable": true,
+                        "isHidden": false
+                      }
+                    ],
+                    "data": "${getResourcesByTags0?.outputs?.resources || []}",
+                    "emptyStateCaption": "No tagged resources found",
+                    "globalFilter": true,
+                    "hasColumnToolbar": true,
+                    "hasSortToolbar": true,
+                    "isLoading": false,
+                    "isScrollable": "vertical",
+                    "isSubRowsEnabled": false,
+                    "isVisible": true,
+                    "isWrappable": false,
+                    "pageSize": 25,
+                    "paginationType": "client_side",
+                    "rowButtons": [
+                      {
+                        "events": [
+                          {
+                            "name": "click",
+                            "queryName": "untagResources0",
+                            "type": "triggerQuery"
+                          }
+                        ],
+                        "name": "removeTagButton",
+                        "properties": {
+                          "iconLeft": "",
+                          "iconRight": "",
+                          "isBorderless": false,
+                          "isDisabled": false,
+                          "isLoading": false,
+                          "isPrimary": true,
+                          "isVisible": true,
+                          "label": "Remove Tag",
+                          "level": "danger"
+                        },
+                        "type": "button"
+                      }
+                    ],
+                    "searchable": true,
+                    "summary": true,
+                    "title": "Tagged AWS Resources",
+                    "titleAlignment": "left",
+                    "titleType": "plain_text"
+                  },
+                  "type": "table"
+                }
+              ],
+              "isVisible": "true",
+              "layout": {
+                "default": {
+                  "height": 75,
+                  "width": 12,
+                  "x": 0,
+                  "y": 30
+                }
+              }
+            },
+            "type": "gridCell"
+          },
+          {
+            "events": [],
+            "name": "gridCell4",
+            "properties": {
+              "children": [
+                {
+                  "events": [
+                    {
+                      "name": "click",
+                      "queryName": "getResourcesByTags0",
+                      "type": "triggerQuery"
+                    }
+                  ],
+                  "name": "refreshButton",
+                  "properties": {
+                    "iconLeft": "",
+                    "iconRight": "",
+                    "isBorderless": false,
+                    "isDisabled": false,
+                    "isLoading": false,
+                    "isPrimary": true,
+                    "isVisible": true,
+                    "label": "Refresh",
+                    "level": "default"
+                  },
+                  "type": "button"
+                }
+              ],
+              "isVisible": "true",
+              "layout": {
+                "default": {
+                  "height": 4,
+                  "width": 2,
+                  "x": 0,
+                  "y": 105
+                }
+              }
+            },
+            "type": "gridCell"
+          }
+        ]
+      },
+      "type": "grid"
+    }
+  ],
+  "connections": [
+    {
+      "id": "__CONNECTION_ID__",
+      "name": "INTEGRATION_AWS"
+    }
+  ],
+  "description": "Discover and manage AWS resources tagged with a specific service tag. Lists all resources matching the service:__SERVICE_TAG_VALUE__ tag across configured resource types. Returns ARNs — chain a describe query on selection for resource details.",
+  "name": "AWS Tagged Resource Manager",
+  "rootInstanceName": "grid0",
+  "tags": []
+}

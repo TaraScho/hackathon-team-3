@@ -1,0 +1,105 @@
+{
+    "id": "update-ec2-instances-w-aws-ssm",
+    "name": "Update EC2 Instances with AWS System Manager",
+    "description": "Automate updating of EC2 instances via your AWS Systems Manager.",
+    "categories": [
+        "DEVELOPER_EXPERIENCE"
+    ],
+    "highlightedBundles": [
+        "com.datadoghq.aws.system_manager"
+    ],
+    "userTags": [
+        "source:alert"
+    ],
+    "spec": {
+        "triggers": [
+            {
+                "workflowTrigger": {},
+                "startStepNames": [
+                    "List_EC2_instances"
+                ]
+            }
+        ],
+        "inputSchema": {
+            "parameters": [
+                {
+                    "name": "filterValue",
+                    "label": "EC2 Instances Filter Value",
+                    "type": "STRING"
+                },
+                {
+                    "name": "filterName",
+                    "label": "EC2 Instances Filter Name",
+                    "type": "STRING"
+                },
+                {
+                    "name": "documentName",
+                    "label": "SSM Document Name",
+                    "type": "STRING"
+                }
+            ]
+        },
+        "steps": [
+            {
+                "outboundEdges": [
+                    {
+                        "branchName": "main",
+                        "nextStepName": "Function"
+                    }
+                ],
+                "actionId": "com.datadoghq.aws.ec2.describe_ec2_instances",
+                "parameters": [
+                    {
+                        "name": "filters",
+                        "value": [
+                            {
+                                "Values": [
+                                    "{{ Trigger.filterValue }}"
+                                ],
+                                "Name": "{{ Trigger.filterName }}"
+                            }
+                        ]
+                    }
+                ],
+                "name": "List_EC2_instances"
+            },
+            {
+                "outboundEdges": [
+                    {
+                        "branchName": "main",
+                        "nextStepName": "Send_command"
+                    }
+                ],
+                "actionId": "com.datadoghq.datatransformation.func",
+                "parameters": [
+                    {
+                        "name": "context",
+                        "value": {
+                            "previousStep": "{{ Steps.List_EC2_instances.instances }}"
+                        }
+                    },
+                    {
+                        "name": "script",
+                        "value": "// Transform your context\n// Your script context is available in the\n// `$` variable.\n//\n// Lodash is available in your script\n// through the `_` variable.\n// See https://lodash.com/ for reference.\n\nlet value = $.previousStep;\nlet ans = [];\n\nvalue.forEach(function (elem) {\n   ans.push(elem.InstanceId);\n});\n\nreturn ans;"
+                    }
+                ],
+                "name": "Function"
+            },
+            {
+                "actionId": "com.datadoghq.aws.system_manager.sendCommand",
+                "parameters": [
+                    {
+                        "name": "documentName",
+                        "value": "{{ Trigger.documentName }}"
+                    },
+                    {
+                        "name": "instanceIds",
+                        "value": "{{ Steps.Function.data }}"
+                    }
+                ],
+                "name": "Send_command"
+            }
+        ]
+    },
+    "createdAt": "2022-09-08T21:06:37Z"
+}

@@ -1,0 +1,106 @@
+{
+  "id": "export-ebs-volumes-not-in-ddsql-as-s3-csv",
+  "name": "Export all EBS volumes not in use from DDSQL as a CSV to S3",
+  "description": "This workflow extracts unused EBS volumes from DDSQL, converts them to CSV, and uploads the file to S3.",
+  "categories": [
+    "ADVANCED_REPORTING",
+    "AUTOMATE_MANUAL_TASKS"
+  ],
+  "userTags": [],
+  "highlightedBundles": [
+    "com.datadoghq.dd.ddsql",
+    "com.datadoghq.aws.s3"
+  ],
+  "spec": {
+    "steps": [
+      {
+        "actionId": "com.datadoghq.datatransformation.func",
+        "display": {
+          "bounds": {
+            "y": 360
+          }
+        },
+        "name": "Transform_to_CSV",
+        "outboundEdges": [
+          {
+            "branchName": "main",
+            "nextStepName": "Upload_to_S3"
+          }
+        ],
+        "parameters": [
+          {
+            "name": "script",
+            "value": "const volumes = $.Steps.Query.data;\n\n// Map instances to desired attributes and create CSV rows\nconst csvRows = volumes.map(vol => {\n    return `${vol.volume_id},${vol.volume_type},${vol.account_id},${vol.state},${vol.availability_zone}`;\n});\n\n// Define the CSV header\nconst header = 'Volume Id,Volume Type,Account Id,State, Availability Zone,';\n\n// Prepend the header row and join rows with newlines\nconst csvData = [header, ...csvRows].join('\\n');\n\nreturn csvData;"
+          },
+          {
+            "name": "description",
+            "value": ""
+          }
+        ]
+      },
+      {
+        "actionId": "com.datadoghq.aws.s3.putObject",
+        "display": {
+          "bounds": {
+            "y": 480
+          }
+        },
+        "name": "Upload_to_S3",
+        "parameters": [
+          {
+            "name": "body",
+            "value": "{{ Steps.Transform_to_CSV.data }}"
+          },
+          {
+            "name": "bucket",
+            "value": ""
+          },
+          {
+            "name": "contentType",
+            "value": "text/csv"
+          },
+          {
+            "name": "key",
+            "value": ""
+          },
+          {
+            "name": "region",
+            "value": "us-east-1"
+          }
+        ]
+      },
+      {
+        "actionId": "com.datadoghq.dd.ddsql.tableQuery",
+        "display": {
+          "bounds": {
+            "y": 192
+          }
+        },
+        "name": "Query",
+        "outboundEdges": [
+          {
+            "branchName": "main",
+            "nextStepName": "Transform_to_CSV"
+          }
+        ],
+        "parameters": [
+          {
+            "name": "query",
+            "value": "-- AWS EBS volumes that are not in use\nSELECT account_id,\n  volume_id,\n  volume_type,\n  state,\n  availability_zone\nFROM aws.ebs_volume\nWHERE state != 'in-use'"
+          }
+        ]
+      }
+    ],
+    "triggers": [
+      {
+        "scheduleTrigger": {
+          "rruleExpression": "DTSTART:20251024T153116Z\nRRULE:FREQ=DAILY;INTERVAL=1;BYMINUTE=0;BYHOUR=9;BYDAY=MO,TU,WE,TH,FR"
+        },
+        "startStepNames": [
+          "Query"
+        ]
+      }
+    ]
+  },
+  "createdAt": "2025-10-24T15:32:40.104Z"
+}

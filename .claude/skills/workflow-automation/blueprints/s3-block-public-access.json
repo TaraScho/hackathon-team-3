@@ -1,0 +1,46 @@
+{
+    "id": "s3-block-public-access",
+    "name": "S3 Block Public Access",
+    "description": "Automate blocking public access of your S3 buckets.",
+    "categories": [
+        "SECURITY"
+    ],
+    "highlightedBundles": [
+        "com.datadoghq.aws.s3"
+    ],
+    "userTags": [
+        "security"
+    ],
+    "spec": {
+        "triggers": [
+            {
+                "workflowTrigger": {},
+                "startStepNames": [
+                    "Block_public_access"
+                ]
+            }
+        ],
+        "inputSchema": {
+            "parameters": [
+                {
+                    "name": "bucketName",
+                    "label": "S3 Bucket Name",
+                    "type": "STRING"
+                }
+            ]
+        },
+        "steps": [
+            {
+                "actionId": "com.datadoghq.aws.s3.block_public_access",
+                "parameters": [
+                    {
+                        "name": "bucket",
+                        "value": "{{ Trigger.bucketName }}"
+                    }
+                ],
+                "name": "Block_public_access"
+            }
+        ]
+    },
+    "createdAt": "2022-09-02T18:47:09Z"
+}

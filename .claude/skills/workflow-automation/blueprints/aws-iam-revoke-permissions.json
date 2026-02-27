@@ -1,0 +1,55 @@
+{
+    "id": "aws-iam-revoke-permissions",
+    "name": "AWS IAM Revoke Permissions (Remove User from Group)",
+    "description": "Restrict IAM User permissions by removing critical AWS Permissions.",
+    "categories": [
+        "SECURITY"
+    ],
+    "highlightedBundles": [
+        "com.datadoghq.aws.iam"
+    ],
+    "userTags": [
+        "security"
+    ],
+    "spec": {
+        "triggers": [
+            {
+                "workflowTrigger": {},
+                "startStepNames": [
+                    "Remove_User_from_Group"
+                ]
+            }
+        ],
+        "inputSchema": {
+            "parameters": [
+                {
+                    "name": "groupName",
+                    "label": "IAM Group Name",
+                    "type": "STRING"
+                },
+                {
+                    "name": "userName",
+                    "label": "IAM User Name",
+                    "type": "STRING"
+                }
+            ]
+        },
+        "steps": [
+            {
+                "parameters": [
+                    {
+                        "name": "userName",
+                        "value": "{{ Trigger.userName }}"
+                    },
+                    {
+                        "name": "groupName",
+                        "value": "{{ Trigger.groupName }}"
+                    }
+                ],
+                "actionId": "com.datadoghq.aws.iam.remove_user_from_group",
+                "name": "Remove_User_from_Group"
+            }
+        ]
+    },
+    "createdAt": "2022-09-02T18:47:09Z"
+}

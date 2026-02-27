@@ -3,7 +3,7 @@ name: repo-analyzer
 description: >
   Scans a repo's IaC files to produce a tiered Datadog resource recommendations
   report (datadog-recommendations.md + repo-analysis.json). Maps AWS services
-  to App Builder templates and infrastructure patterns to Workflow Automations.
+  to App Builder apps and infrastructure patterns to Workflow Automations.
   Trigger phrases: "analyze my repo for Datadog", "what Datadog resources should I build",
   "scan my repo", "generate Datadog recommendations", "audit repo for Datadog",
   "Datadog onboarding for my repo", "map AWS services to Datadog".
@@ -19,20 +19,16 @@ metadata:
 
 ## Overview
 
-Scans a repository's IaC and infrastructure files to detect AWS services, identify microservice boundaries, and map findings to concrete Datadog resources. Outputs a tiered `datadog-recommendations.md` report and a machine-parseable `repo-analysis.json`.
+Scans a repository's IaC and infrastructure files to detect cloud provider services, identify microservices (application services - not cloud provider service types), and reccommend Datadog resources to create . Outputs a tiered `datadog-recommendations.md` report and a machine-parseable `repo-analysis.json`.
 
 The focus is **infrastructure criticality** — what AWS services are most critical to monitor and manage for this project's operations. The output answers: "what Datadog resources should we build and in what order of importance?"
 
-```
-repo (IaC files)
-      |
-      v
-repo-analyzer --> datadog-recommendations.md (human-readable)
-              \-> repo-analysis.json         (machine-parseable)
-                        |
-                        v
-              onboard-repository skill
-              (executes the plan)
+```mermaid
+graph TD
+    R[repo IaC files] --> RA[repo-analyzer]
+    RA --> REC[datadog-recommendations.md<br/>human-readable]
+    RA --> JSON[repo-analysis.json<br/>machine-parseable]
+    JSON --> OB[onboard-repository skill<br/>executes the plan]
 ```
 
 ---
@@ -40,28 +36,22 @@ repo-analyzer --> datadog-recommendations.md (human-readable)
 ## When to Use
 
 - Onboarding a new service onto Datadog and unsure where to start
-- Deciding which App Builder templates are relevant to a repo's AWS footprint
-- Planning which remediation workflows to create based on detected infrastructure patterns
-- Generating an actionable queue for skill pipelines or CI/CD automation
-- Assessing observability coverage before going to production
+- Deciding which App Builder apps are relevant to a repo's cloud infrastructure footprint
+- Planning which Workflow Automation workflows to create based on detected infrastructure patterns
 
 ---
 
-## Analysis Playbook (5-Step Process)
+## Analysis Playbook
 
-### Step 1 — Inventory the Repo
+### Inventory the Repo
 
 Scan for IaC file patterns to identify tooling and project structure:
 
 - **Terraform:** `**/*.tf`, `**/*.tfvars`, `**/.terraform.lock.hcl`
 - **CDK:** `**/cdk.json`, `**/lib/**/*.ts`
 - **CloudFormation / SAM:** `**/cloudformation/**/*.yaml`, `**/template.yaml`
-- **Containers:** `Dockerfile*`, `docker-compose*.yml`, `**/k8s/**/*.yaml`
-- **OTel:** `**/otel*.yaml`, `**/opentelemetry*.yaml`
 
-Check top-level directory layout for microservice names. Extract languages from `Dockerfile`/`package.json`/`requirements.txt` and deployment targets (ECS, EC2, Lambda, EKS).
-
-### Step 1b — Derive Output Format Preference
+### Derive Output Format Preference
 
 Based on detected IaC tooling:
 
@@ -72,16 +62,37 @@ Based on detected IaC tooling:
 | CDK | `shell` | Execute `curl` + `aws cli` commands directly |
 | Unknown / mixed | `shell` | Shell commands are the safe default |
 
-**Edge case — mixed IaC:** Count files for each tooling:
-- More `.tf` files → `terraform`
-- More CFN/CDK files → `shell`
-- Tie → `terraform` (Terraform provider coverage is broader)
+**Edge case — mixed IaC:** 
+- If `.tf` files are present → use `terraform` to generate `.tf` files using Datadog Terraform provider
 
-See `references/service-mapping.md` for the full derivation table.
+### Identify Application Services and Microservices
 
-### Step 2 — Identify AWS Services
+Extract the **application services** (what the team owns and operates) from IaC resource tags and repo structure. These are NOT cloud provider service types — they are the application services that will be registered in Datadog Software Catalog. An intelligent process requireing thinking not just rule processing.
 
-Build a deduplicated list from IaC resource declarations:
+**Sources (in priority order):**
+
+1. **`Service` tags on resources.** Deduplicate across resources — multiple resources with `Service: order-processor` = one service.
+2. **IaC Module names.** For example when a repo has multiple CloudFormation templates named `{project}-{service}.yaml`, you may be able to infer the service name from the module name.
+3. **Directory-per-service layout.** Top-level directories with their own IaC, `Dockerfile`, or `package.json` might be services.
+4. **Fallback: project name.** If no `Service` tags and a single stack/template, use the project name as the sole service.
+
+Populate the `microservices` array in `repo-analysis.json` with these values. The `software-catalog` skill reads this array directly to register catalog entities.
+
+### Identify Teams
+
+Extract **team ownership** from IaC resource tags, using the same scanning approach as application service extraction.
+
+**Sources (in priority order):**
+
+1. **`Team` tags on resources.** Deduplicate across resources — multiple resources with `Team: platform-engineering` = one team.
+2. **Cross-reference `Team` + `Service` tags** on the same resources to build a team→service ownership map. For example, if a resource has `Team: platform-engineering` and `Service: data-storage`, that service belongs to that team.
+3. **Fallback:** If NO `Team` tags are found anywhere in the repo, leave the `teams` array empty. Downstream skills will fall back to `{project}-team`.
+
+Populate the `teams` array in `repo-analysis.json`. The `software-catalog` skill reads this array to create teams and assign service ownership.
+
+### Identify Cloud Provider Services
+
+Build a deduplicated list from IaC resource declarations. The following example uses AWS resources, but the process is the same for other cloud providers.
 
 ```
 resource "aws_ecs_service"         -> ecs
@@ -99,42 +110,45 @@ resource "aws_iam_role"            -> iam
 
 For CDK: search `aws-cdk-lib/aws-<service>` imports. For CloudFormation: search `Type: AWS::<Service>::*`.
 
-### Step 3 — Map to App Builder Templates
+### Recommend App Builder Apps
 
-Select applicable templates (see `references/service-mapping.md` for full table):
+**YOUR JOB IS NOT TO DESIGN THE COMPLETE APPS. YOUR JOB IS TO RECOMMEND FUNCTIONS THAT AN APP COULD PERFORM FOR THE DASHBOARD USER TO PROVIDE VALUE.**
 
-| AWS Service | Template | Tier |
-|---|---|---|
-| EC2 | `ec2-management-console.json` | 1 |
-| ECS | `manage-ecs-tasks.json` | 1 |
-| S3 | `explore-s3.json` | 2 |
-| Lambda | `lambda-function-manager.json` | 2 |
-| Multiple (3+) | `aws-quick-review.json` | 2 |
+Your job is to intelligently recommend App Builder apps that will be embedded in a composite dashboard used to manage the repo's infrastructure.
 
-### Step 4 — Identify Infrastructure Patterns
+**Step A — Discover available actions for detected services.**
+For each cloud provider service detected in the repo, check the action catalog index at `.claude/skills/shared/action-catalog-index.md` to confirm actions exist. If a per-service file exists at `.claude/skills/shared/actions-by-service/{service}.md`, read it to understand what operations (list, describe, update, delete, invoke, etc.) are available. The action catalog is the **sole authority** on what can be built — if actions exist for a service, an app can be built for it.
 
-Flag patterns that indicate operational criticality and pair with workflows:
+**Step B — Recommend apps based on available actions.**
+Group related actions into coherent operator apps. Each app should combine related read + write operations for one or a few related services (e.g., a Kinesis app could combine describe_stream + list_streams + put_record + get_records). The `purpose` field should describe the operations available based on the actions, not based on whether an example app exists.
 
-| Pattern | Criticality | Workflow |
-|---|---|---|
-| IAM role/policy with `"*"` resource | Broad permissions need governance | IAM disable user |
-| Security group with `0.0.0.0/0` ingress | Open exposure needs remediation | Revoke ingress |
-| ECS service/task definition | Deployment operations need rollback capability | ECS rollback |
-| S3 bucket without `block_public_access` | Data exposure needs access control | S3 public access block |
+**Step C — Use example app definitions only as structural references.**
+If an example exists in `.claude/skills/app-builder/examples/app-definitions/` for the same service, read it to understand component structure and layout patterns. If no example exists, that does **NOT** mean you can't recommend the app — the action catalog has the actions, and the downstream app-builder skill can construct the app from those actions.
 
-Additional patterns (Lambda timeout, RDS public access, CloudTrail logging) in `references/service-mapping.md`.
+### Recommend Workflow Automation Workflows
 
-### Step 5 — Assign Tiers
+**YOUR JOB IS NOT TO DESIGN THE COMPLETE WORKFLOWS. YOUR JOB IS TO RECOMMEND FUNCTIONS THAT A WORKFLOW COULD PERFORM FOR THE DASHBOARD USER TO PROVIDE VALUE.**
 
-- **Tier 1 (Foundation):** Action connection (always), primary compute app (EC2/ECS), SRE golden signals dashboard
-- **Tier 2 (Operational):** Non-compute app builder apps, infrastructure-pattern workflows, `aws-quick-review.json` if 3+ services
-- **Tier 3 (Advanced):** Composite dashboard with embedded apps, multi-step workflow chains, OTel dashboard (if detected)
+**Step A — Discover available actions for detected services.**
+Same as apps — check the action catalog index at `.claude/skills/shared/action-catalog-index.md` and per-service files at `.claude/skills/shared/actions-by-service/{service}.md` to understand what operations are available.
+
+**Step B — Recommend workflows based on available actions and infrastructure patterns.**
+Consider what operational/security remediation workflows would be highest value for the detected infrastructure. Workflows can be built from any actions in the catalog, not just services that have blueprints. Common patterns: remediate security findings, respond to monitor alerts, automate operational tasks. **CRITICAL CONSTRAINT**: While workflows can have multiple types of triggers, our complete workflows will only have dashboard trigger type or must have a dashboard trigger type in addition to another trigger type.
+
+**Step C — Use blueprints only as structural references.**
+If a relevant blueprint exists in `.claude/skills/workflow-automation/blueprints/`, reference it in the `blueprint` field. If no blueprint exists, set `blueprint` to `null` and the downstream workflow-automation skill will construct the workflow from action catalog actions.
+
+### Decide highest value items to recommend
+
+Recommendations should be bounded by the action catalog, not by which example apps or blueprints happen to exist. If the action catalog has actions for a detected service, that service is eligible for app and workflow recommendations.
+
+Based on the most critical infrastructure in the project architecture, recommend the highest value and most feasible App Builder apps and Workflow Automation workflows to build for the operator's dashboard. Aim for a maximum of 6 total assets to add to the dashboard.
 
 ---
 
 ## Output Report Template
 
-Write to `datadog-recommendations.md` at the analyzed repo root:
+Write to `{RUN_DIR}/datadog-recommendations.md`:
 
 ```markdown
 # Datadog Resources Recommendations
@@ -142,123 +156,70 @@ Write to `datadog-recommendations.md` at the analyzed repo root:
 
 ## Findings Summary
 
-- **AWS services detected:** {comma-separated list}
+- **Cloud provider services detected:** {comma-separated list}
 - **Microservices / service directories:** {list}
 - **IaC tooling:** {Terraform / CDK / CloudFormation / SAM}
 - **Preferred output format:** {terraform | shell}
-- **Infrastructure patterns:** {e.g., "broad IAM in iam.tf:12", "open SG in security-groups.tf:34"}
-- **OTel detected:** {Yes / No}
-- **Terraform state detected:** {Yes / No}
-
----
-
-## Tier 1: Foundation (Build These First)
-
-### 1. AWS Action Connection
-- **Skill:** `action-connections`
-- **Why:** Prerequisite for all App Builder apps and Workflow Automations
-- **Output:** Connection UUID
-
-### 2. {Primary Compute App}
-- **Skill:** `app-builder`
-- **Template:** `{ec2-management-console.json | manage-ecs-tasks.json}`
-- **Why:** {service} found in {file(s)} — critical compute management
-- **Depends on:** Action connection from #1
-
-### 3. SRE Golden Signals Dashboard
-- **Skill:** `dashboards`
-- **Template:** `dd101-sre-dashboard.json`
-- **Why:** Core operational visibility
-
----
-
-## Tier 2: Operational Tooling
-
-### {N}. {App / Workflow per detected pattern}
-...
-
----
-
-## Tier 3: Advanced Automation
-
-### {N}. Composite Dashboard with Embedded Apps
-...
-```
-
+- **Teams detected:** {list or "none — fallback to {project}-team"}
+- **App Builder apps to build:** {list}
+- **Workflow Automation workflows to build:** {list}
 ---
 
 ## Structured Output (JSON)
 
-Produce `repo-analysis.json`:
+Produce `repo-analysis.json`.
+
+**This is the exact output schema. Use these field names exactly as written — no renaming, no additional fields, no omitted fields. Every field shown below is required.**
 
 ```json
 {
   "repo_path": "<analyzed path>",
   "iac_tooling": "<Terraform | CloudFormation | CDK TypeScript>",
   "preferred_output_format": "<terraform | shell>",
-  "aws_services": ["ecs", "sqs", "iam", "s3"],
-  "microservices": ["<service boundaries>"],
-  "infrastructure_patterns": [
-    {
-      "type": "<iam_broad_permissions | open_security_groups | ecs_deployment | ...>",
-      "files": ["<files where detected>"]
-    }
+  "cloud_provider_services": ["ecs", "sqs", "iam", "s3"],
+  "microservices": ["<application services from Step 2 — NOT cloud provider service types>"],
+  "teams": [
+    {"handle": "<team-handle>", "services": ["<service-1>", "<service-2>"]}
   ],
   "app_candidates": [
     {
-      "template": "<template filename>",
-      "service": "<AWS service>",
-      "tier": 1,
-      "short_label": "<PascalCase>"
+      "cloud_provider_services": "<cloud provider service(s)>",
+      "short_label": "<PascalCase>",
+      "purpose": "<what the app lets operators do, e.g. 'List, reboot, and modify RDS instances; toggle public accessibility'>"
     }
   ],
   "workflow_candidates": [
     {
-      "type": "<ecs_rollback | iam_disable_user | revoke_ingress | ...>",
-      "infrastructure_pattern": "<matched pattern type>",
+      "blueprint": "<blueprint filename if one exists in blueprints/ folder, otherwise null>",
+      "service": "<primary AWS service this workflow covers>",
       "trigger": "<security_signal | monitor_alert | scheduled | manual>",
       "tier": 2,
-      "short_label": "<PascalCase>"
+      "short_label": "<PascalCase>",
+      "purpose": "<what the workflow achieves for this repo's infrastructure>"
     }
   ]
 }
 ```
 
-NOTE: The field names are `infrastructure_patterns` and `infrastructure_pattern` — these replaced the legacy field names from earlier versions.
+The `teams` array is always required. If no `Team` tags are found in IaC, set to `[]`.
 
-### `short_label` Derivation Rule
+### `purpose` Field
 
-1. **Apps:** strip `.json`, strip prefixes/suffixes, PascalCase.
-   - `manage-ecs-tasks.json` → `EcsTasks` | `explore-s3.json` → `S3`
-2. **Workflows:** PascalCase the type.
-   - `ecs_rollback` → `EcsRollback` | `iam_disable_user` → `IamDisableUser`
+Always required. Describes the functional outcome from an operator's perspective.
+
+- **For apps:** What operations the UI enables. Example: "Explore and manage S3 buckets: list, browse objects, download, delete"
+- **For workflows:** What the workflow achieves for this repo's detected infrastructure. Example: "Roll back ECS service deployments when task failures spike"
+- Do NOT include action FQNs, JSON structure, or implementation details — the downstream skill owns design and construction
 
 ---
 
 ## Where to Write
 
-| Location | File | Purpose |
-|---|---|---|
-| Analyzed repo root | `{repo_path}/datadog-recommendations.md` | Human report |
-| Analyzed repo root | `{repo_path}/repo-analysis.json` | Machine output |
-| Well-known handoff | `.claude/context/repo-analysis.json` | Fixed path downstream skills check |
+`RUN_DIR` is always provided by the `onboard-repository` orchestrator. All outputs go to the run directory:
 
-The `.claude/context/` write is always required.
-
----
-
-## Additional Resources
-
-- `references/service-mapping.md` — Full AWS→Datadog mapping tables, infrastructure pattern details, tier criteria
+| File | Location |
+|---|---|
+| `datadog-recommendations.md` | `{RUN_DIR}/` |
+| `repo-analysis.json` | `{RUN_DIR}/` |
 
 ---
-
-## Cross-Skill Notes
-
-| Skill | Role | Key Input | Key Output |
-|---|---|---|---|
-| `onboard-repository` | Executes this plan | `repo-analysis.json` | All Datadog resources |
-| `action-connections` | Prerequisite per app/workflow | AWS account ID, role name | Connection UUID |
-| `app-builder` | Management UIs | Connection UUID | App UUIDs |
-| `workflow-automation` | Automated remediation | Connection UUID | Workflow UUIDs |
-| `dashboards` | Visualization layer | App UUIDs (composite) | Dashboard URLs |

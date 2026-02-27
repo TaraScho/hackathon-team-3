@@ -1,0 +1,49 @@
+{
+    "id": "csm-threat-protection-stop-ecs",
+    "name": "Stop ECS Task",
+    "description": "Automate the action of stopping an ECS task in reaction to a security signal",
+    "categories": [
+        "SECURITY"
+    ],
+    "highlightedBundles": [
+        "com.datadoghq.aws.ecs"
+    ],
+    "userTags": [
+        "security"
+    ],
+    "spec": {
+        "triggers": [
+            {
+                "workflowTrigger": {},
+                "startStepNames": [
+                    "Stop_ECS_task"
+                ]
+            }
+        ],
+        "steps": [
+            {
+                "actionId": "com.datadoghq.aws.ecs.stopEcsTask",
+                "name": "Stop_ECS_task",
+                "parameters": [
+                    {
+                        "name": "region",
+                        "value": "{{ Source.securitySignal.custom.stop_ecs.region }}"
+                    },
+                    {
+                        "name": "taskId",
+                        "value": "{{ Source.securitySignal.custom.stop_ecs.task_id }}"
+                    },
+                    {
+                        "name": "cluster",
+                        "value": "{{ Source.securitySignal.custom.stop_ecs.cluster }}"
+                    },
+                    {
+                        "name": "reason",
+                        "value": "{{ Source.securitySignal.custom.stop_ecs.reason }}"
+                    }
+                ]
+            }
+        ]
+    },
+    "createdAt": "2024-06-06T17:37:37Z"
+}

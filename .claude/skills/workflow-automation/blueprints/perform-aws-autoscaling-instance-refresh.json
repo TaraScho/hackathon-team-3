@@ -1,0 +1,51 @@
+{
+    "id": "perform-aws-autoscaling-instance-refresh",
+    "name": "Perform AWS Autoscaling Instance Refresh",
+    "description": "Automate performing instance refresh on your Amazon EC2 Auto Scaling.",
+    "categories": [
+        "REMEDIATION",
+        "MONITORS"
+    ],
+    "highlightedBundles": [
+        "com.datadoghq.aws.autoscaling"
+    ],
+    "userTags": [
+        "source:alert"
+    ],
+    "spec": {
+        "triggers": [
+            {
+                "workflowTrigger": {},
+                "startStepNames": [
+                    "Start_instance_refresh"
+                ]
+            }
+        ],
+        "inputSchema": {
+            "parameters": [
+                {
+                    "name": "asgGroupName",
+                    "label": "ASG Group Name",
+                    "type": "STRING"
+                }
+            ]
+        },
+        "steps": [
+            {
+                "actionId": "com.datadoghq.aws.autoscaling.startInstanceRefresh",
+                "parameters": [
+                    {
+                        "name": "autoScalingGroupName",
+                        "value": "{{ Trigger.asgGroupName }}"
+                    },
+                    {
+                        "name": "desiredConfiguration",
+                        "value": {}
+                    }
+                ],
+                "name": "Start_instance_refresh"
+            }
+        ]
+    },
+    "createdAt": "2022-09-02T12:18:38Z"
+}

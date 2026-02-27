@@ -1,0 +1,72 @@
+{
+    "id": "aws-iam-create-user-and-add-to-group",
+    "name": "AWS IAM Create User and Add to a IAM group",
+    "description": "Add newly created IAM Users to the right IAM Group.",
+    "categories": [
+        "AUTOMATE_MANUAL_TASKS",
+        "ONBOARDING"
+    ],
+    "highlightedBundles": [
+        "com.datadoghq.aws.iam"
+    ],
+    "userTags": [
+        "security"
+    ],
+    "spec": {
+        "triggers": [
+            {
+                "workflowTrigger": {},
+                "startStepNames": [
+                    "Create_user"
+                ]
+            }
+        ],
+        "inputSchema": {
+            "parameters": [
+                {
+                    "name": "userName",
+                    "label": "IAM User Name",
+                    "type": "STRING"
+                },
+                {
+                    "name": "groupName",
+                    "label": "IAM Group Name",
+                    "type": "STRING"
+                }
+            ]
+        },
+        "steps": [
+            {
+                "parameters": [
+                    {
+                        "name": "userName",
+                        "value": "{{ Trigger.userName }}"
+                    }
+                ],
+                "outboundEdges": [
+                    {
+                        "branchName": "main",
+                        "nextStepName": "Add_user_to_group"
+                    }
+                ],
+                "actionId": "com.datadoghq.aws.iam.create_user",
+                "name": "Create_user"
+            },
+            {
+                "parameters": [
+                    {
+                        "name": "groupName",
+                        "value": "{{ Trigger.groupName }}"
+                    },
+                    {
+                        "name": "userName",
+                        "value": "{{ Trigger.userName }}"
+                    }
+                ],
+                "actionId": "com.datadoghq.aws.iam.add_user_to_group",
+                "name": "Add_user_to_group"
+            }
+        ]
+    },
+    "createdAt": "2022-09-02T18:47:09Z"
+}

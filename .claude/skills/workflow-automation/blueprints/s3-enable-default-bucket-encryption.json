@@ -1,0 +1,50 @@
+{
+    "id": "s3-enable-default-bucket-encryption",
+    "name": "S3 Enable Default Bucket Encryption",
+    "description": "Automate how you manage default encryption policies on your S3 buckets.",
+    "categories": [
+        "SECURITY"
+    ],
+    "highlightedBundles": [
+        "com.datadoghq.aws.s3"
+    ],
+    "userTags": [
+        "security"
+    ],
+    "spec": {
+        "triggers": [
+            {
+                "workflowTrigger": {},
+                "startStepNames": [
+                    "Enable_default_bucket_encryption"
+                ]
+            }
+        ],
+        "inputSchema": {
+            "parameters": [
+                {
+                    "name": "bucketName",
+                    "label": "S3 Bucket Name",
+                    "type": "STRING"
+                }
+            ]
+        },
+        "steps": [
+            {
+                "actionId": "com.datadoghq.aws.s3.enable_default_bucket_encryption",
+                "parameters": [
+                    {
+                        "name": "bucket",
+                        "value": "{{ Trigger.bucketName }}"
+                    },
+                    {
+                        "name": "keyType",
+                        "value": "AES256"
+                    }
+                ],
+                "name": "Enable_default_bucket_encryption"
+            }
+        ]
+    },
+    "createdAt": "2022-09-02T12:18:38Z"
+}

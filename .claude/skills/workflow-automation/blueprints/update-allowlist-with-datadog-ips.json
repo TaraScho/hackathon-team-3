@@ -1,0 +1,73 @@
+{
+    "id": "update-allowlist-with-datadog-ips",
+    "name": "Periodically Update Allowlist With Datadog IPs",
+    "description": "This workflow retrieves Datadog IP addresses and adds them to an AWS WAFv2 allowlist. ",
+    "categories": [
+        "AUTOMATE_MANUAL_TASKS",
+        "DEVELOPER_EXPERIENCE"
+    ],
+    "highlightedBundles": [
+        "com.datadoghq.dd.ip_ranges",
+        "com.datadoghq.aws.wafv2"
+    ],
+    "spec": {
+        "steps": [
+            {
+                "actionId": "com.datadoghq.dd.ip_ranges.getIPRanges",
+                "name": "Fetch_Datadog_IPs_for_allowlist",
+                "outboundEdges": [
+                    {
+                        "branchName": "main",
+                        "nextStepName": "Add_to_allowlist_IP_set"
+                    }
+                ],
+                "parameters": []
+            },
+            {
+                "actionId": "com.datadoghq.aws.wafv2.add_to_ip_set",
+                "name": "Add_to_allowlist_IP_set",
+                "parameters": [
+                    {
+                        "name": "region",
+                        "value": "Global (Cloudfront)"
+                    },
+                    {
+                        "name": "addressesToAdd",
+                        "value": "{{ Steps.Fetch_Datadog_IPs_for_allowlist.ips.workflow-automation.prefixes_ipv4 }}"
+                    },
+                    {
+                        "name": "ipSetName",
+                        "value": "{{ Trigger.IP_set_name }}"
+                    },
+                    {
+                        "name": "ipSetId",
+                        "value": "{{ Trigger.IP_set_ID }}"
+                    }
+                ]
+            }
+        ],
+        "triggers": [
+            {
+                "workflowTrigger": {},
+                "startStepNames": [
+                    "Fetch_Datadog_IPs_for_allowlist"
+                ]
+            }
+        ],
+        "inputSchema": {
+            "parameters": [
+                {
+                    "label": "IP set name",
+                    "name": "IP_set_name",
+                    "type": "STRING"
+                },
+                {
+                    "label": "IP set ID",
+                    "name": "IP_set_ID",
+                    "type": "STRING"
+                }
+            ]
+        }
+    },
+    "createdAt": "2023-09-05T17:19:43Z"
+}
