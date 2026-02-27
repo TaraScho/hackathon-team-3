@@ -1,0 +1,86 @@
+{
+    "id": "modify-blue-green-deployment-strategy",
+    "name": "Modify Blue Green Deployment Strategy",
+    "description": "Automate your blue/green deployment strategy to bolster application availability and reducing deployment risk by simplifying the rollback process if a deployment fails.",
+    "categories": [
+        "REMEDIATION"
+    ],
+    "highlightedBundles": [
+        "com.datadoghq.aws.elb"
+    ],
+    "userTags": [
+        "source:alert"
+    ],
+    "spec": {
+        "triggers": [
+            {
+                "workflowTrigger": {},
+                "startStepNames": [
+                    "Set_blue_green_deployment_strategy"
+                ]
+            }
+        ],
+        "inputSchema": {
+            "parameters": [
+                {
+                    "name": "listenerArn",
+                    "label": "Load Balancer Listener ARN",
+                    "type": "STRING"
+                },
+                {
+                    "name": "blueTargetArn",
+                    "label": "Blue Environment Target ARN",
+                    "type": "STRING"
+                },
+                {
+                    "name": "greenTargetArn",
+                    "label": "Green Environment Target ARN",
+                    "type": "STRING"
+                },
+                {
+                    "name": "weight",
+                    "label": "Percentage Traffic to Green Environment",
+                    "type": "NUMBER"
+                },
+                {
+                    "name": "stickiness",
+                    "label": "Stickiness Duration in Seconds",
+                    "type": "NUMBER"
+                }
+            ]
+        },
+        "steps": [
+            {
+                "parameters": [
+                    {
+                        "name": "listenerARN",
+                        "value": "{{ Trigger.listenerArn }}"
+                    },
+                    {
+                        "name": "blueTargetARN",
+                        "value": "{{ Trigger.blueTargetArn }}"
+                    },
+                    {
+                        "name": "greenTargetARN",
+                        "value": "{{ Trigger.greenTargetArn }}"
+                    },
+                    {
+                        "name": "greenWeight",
+                        "value": "{{ Trigger.weight }}"
+                    },
+                    {
+                        "name": "enableStickiness",
+                        "value": "{{ Trigger.stickiness.enabled }}"
+                    },
+                    {
+                        "name": "stickinessDuration",
+                        "value": "{{ Trigger.stickiness.duration_secs }}"
+                    }
+                ],
+                "actionId": "com.datadoghq.aws.elb.set_blue_green_strategy",
+                "name": "Set_blue_green_deployment_strategy"
+            }
+        ]
+    },
+    "createdAt": "2022-09-02T13:00:19Z"
+}

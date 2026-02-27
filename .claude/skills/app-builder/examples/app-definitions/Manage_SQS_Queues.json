@@ -1,0 +1,674 @@
+{
+  "queries": [
+    {
+      "id": "1c0356bc-1740-42b6-97ee-1a700c534a58",
+      "name": "sqsList",
+      "type": "action",
+      "properties": {
+        "onlyTriggerManually": false,
+        "outputs": "${((outputs) => {const lastUpdated = new Date(Date.now());\nreturn { \n  queues: outputs?.queues?.filter((q) => {\n    const matchesName = name.value?.length ? q.name.toLowerCase().includes(name.value.toLowerCase()) : true;\n\n    return q.attributes.RedrivePolicy && matchesName;\n  }).map((q) => {\n    const arn =\n      JSON.parse(q.attributes.RedrivePolicy).deadLetterTargetArn;\n    const dlq =\n      arn &&\n      self.rawOutputs?.queues?.find((i) => i.attributes.QueueArn === arn);\n    return {\n      name: q.name,\n      length: q.attributes.ApproximateNumberOfMessages > 0 ? q.attributes.ApproximateNumberOfMessages : 'empty',\n      dlq_length: dlq && dlq.attributes.ApproximateNumberOfMessages > 0 ? dlq.attributes.ApproximateNumberOfMessages : 'empty',\n      dlq_name: dlq && dlq.name,\n    };\n  }), \n  lastUpdated: lastUpdated.toLocaleTimeString('en-US')\n};\n})(self.rawOutputs)}",
+        "requiresConfirmation": false,
+        "showToastOnError": true,
+        "spec": {
+          "fqn": "com.datadoghq.aws.sqs.list_queues_with_attributes",
+          "inputs": {
+            "region": "us-east-1"
+          },
+          "connectionId": "__CONNECTION_ID__"
+        }
+      }
+    },
+    {
+      "id": "fdb9540a-f9aa-4d02-a7f9-4fd5344daa67",
+      "name": "dlqPeek",
+      "type": "action",
+      "properties": {
+        "onlyTriggerManually": true,
+        "outputs": "${((outputs) => {return outputs?.messages ?? []})(self.rawOutputs)}",
+        "requiresConfirmation": false,
+        "spec": {
+          "fqn": "com.datadoghq.aws.sqs.receive_messages",
+          "inputs": {
+            "deleteMessages": false,
+            "maxNumberOfMessages": 5,
+            "queueName": "${table0.selectedRow?.content?.dlq_name}",
+            "region": "us-east-1"
+          },
+          "connectionId": "__CONNECTION_ID__"
+        }
+      }
+    },
+    {
+      "id": "13433e3c-4057-446f-b369-092001387e39",
+      "name": "sqsPurge",
+      "type": "action",
+      "properties": {
+        "onlyTriggerManually": true,
+        "requiresConfirmation": true,
+        "showToastOnError": true,
+        "spec": {
+          "fqn": "com.datadoghq.aws.sqs.purge_queue",
+          "inputs": {
+            "queueName": "${table0.selectedRow?.content?.dlq_name}",
+            "region": "us-east-1"
+          },
+          "connectionId": "__CONNECTION_ID__"
+        }
+      },
+      "events": [
+        {
+          "name": "executionFinished",
+          "queryName": "sqsList",
+          "type": "triggerQuery"
+        }
+      ]
+    },
+    {
+      "id": "33f9ad04-9eed-4e64-83a4-7cff5beb9f7c",
+      "name": "sqsRedrive",
+      "type": "action",
+      "properties": {
+        "onlyTriggerManually": true,
+        "requiresConfirmation": true,
+        "showToastOnError": true,
+        "spec": {
+          "fqn": "com.datadoghq.aws.sqs.move_messages",
+          "inputs": {
+            "fromQueueName": "${table0.selectedRow?.content?.dlq_name}",
+            "region": "us-east-1",
+            "toQueueName": "${table0.selectedRow?.content?.name}"
+          },
+          "connectionId": "__CONNECTION_ID__"
+        }
+      },
+      "events": [
+        {
+          "callback": "${() => { setTimeout(() => sqsList.fetch(), 2000) }}",
+          "name": "executionFinished",
+          "type": "custom"
+        }
+      ]
+    },
+    {
+      "id": "debcc03a-893e-41b8-9a97-0725dd8cd733",
+      "name": "sourcePeek",
+      "type": "action",
+      "properties": {
+        "onlyTriggerManually": true,
+        "outputs": "${((outputs) => {// Use `outputs` to reference the query's unformatted output.\n\n// TODO: Apply transformations to the raw query output\n\nreturn outputs?.messages ?? []})(self.rawOutputs)}",
+        "spec": {
+          "fqn": "com.datadoghq.aws.sqs.receive_messages",
+          "inputs": {
+            "deleteMessages": false,
+            "maxNumberOfMessages": 5,
+            "queueName": "${table0.selectedRow?.content?.name}",
+            "region": "us-east-1"
+          },
+          "connectionId": "__CONNECTION_ID__"
+        }
+      }
+    }
+  ],
+  "id": "512c0706-8a54-46ee-864c-2ba4cd8ddba7",
+  "components": [
+    {
+      "events": [],
+      "name": "grid0",
+      "properties": {
+        "children": [
+          {
+            "events": [],
+            "name": "gridCell0",
+            "properties": {
+              "children": [
+                {
+                  "events": [],
+                  "name": "table0",
+                  "properties": {
+                    "columns": [
+                      {
+                        "dataPath": "name",
+                        "disableSortBy": false,
+                        "formatter": {
+                          "type": "tags"
+                        },
+                        "header": "name"
+                      },
+                      {
+                        "dataPath": "length",
+                        "disableSortBy": false,
+                        "formatter": {
+                          "defaultLevel": "warning",
+                          "isSoft": true,
+                          "options": [
+                            {
+                              "level": "default",
+                              "value": "empty"
+                            }
+                          ],
+                          "type": "pill"
+                        },
+                        "header": "length",
+                        "id": "bda90430-1dea-43e3-a743-77727db4d223"
+                      },
+                      {
+                        "dataPath": "dlq_length",
+                        "disableSortBy": false,
+                        "formatter": {
+                          "defaultLevel": "warning",
+                          "isSoft": true,
+                          "options": [
+                            {
+                              "level": "default",
+                              "value": "empty"
+                            }
+                          ],
+                          "type": "pill"
+                        },
+                        "header": "dlq_length",
+                        "id": "23e393a0-8f33-4136-bc80-e6d7a993802e"
+                      },
+                      {
+                        "dataPath": "dlq_name",
+                        "disableSortBy": false,
+                        "formatter": {
+                          "type": "none"
+                        },
+                        "header": "dlq_name",
+                        "id": "a6b9fd2c-5a76-4d97-add4-bc9ed84fc4a2"
+                      }
+                    ],
+                    "data": "${sqsList.outputs.queues}",
+                    "isLoading": "${sqsList.isLoading}",
+                    "isVisible": "true",
+                    "pageSize": "10",
+                    "paginationType": "client_side",
+                    "rowButtons": [
+                      {
+                        "events": [
+                          {
+                            "callback": "${() => {\n    const dlqName = table0?.selectedRow?.content?.dlq_name;\n\n    if (dlqName != null) {\n        sourcePeek.fetch();\n        dlqPeek.fetch();\n        modal0.setIsOpen(true);\n    }\n}}",
+                            "name": "click",
+                            "type": "custom"
+                          }
+                        ],
+                        "name": "button1",
+                        "properties": {
+                          "isPrimary": false,
+                          "isVisible": true,
+                          "label": "Peek Queues",
+                          "level": "default"
+                        },
+                        "type": "button"
+                      },
+                      {
+                        "events": [
+                          {
+                            "callback": "${() => {\n    const dlqName = table0?.selectedRow?.content?.dlq_name;\n\n    if (dlqName != null) {\n        sqsPurge.fetch();\n    }\n}}",
+                            "name": "click",
+                            "type": "custom"
+                          }
+                        ],
+                        "name": "button0",
+                        "properties": {
+                          "isPrimary": false,
+                          "isVisible": true,
+                          "label": "Purge DLQ",
+                          "level": "danger"
+                        },
+                        "type": "button"
+                      },
+                      {
+                        "events": [
+                          {
+                            "callback": "${() => {\n    const dlqName = table0?.selectedRow?.content?.dlq_name;\n\n    if (dlqName != null) {\n        sqsRedrive.fetch();\n    }\n}}",
+                            "name": "click",
+                            "type": "custom"
+                          }
+                        ],
+                        "name": "button2",
+                        "properties": {
+                          "isPrimary": false,
+                          "isVisible": true,
+                          "label": "Redrive DLQ",
+                          "level": "warning"
+                        },
+                        "type": "button"
+                      }
+                    ],
+                    "summary": "false"
+                  },
+                  "type": "table"
+                }
+              ],
+              "isVisible": true,
+              "layout": {
+                "default": {
+                  "height": 53,
+                  "width": 10,
+                  "x": 1,
+                  "y": 27
+                }
+              }
+            },
+            "type": "gridCell"
+          },
+          {
+            "events": [],
+            "name": "modal0",
+            "properties": {
+              "children": [
+                {
+                  "events": [],
+                  "name": "grid1",
+                  "properties": {
+                    "children": [
+                      {
+                        "events": [],
+                        "name": "gridCell2",
+                        "properties": {
+                          "children": [
+                            {
+                              "events": [],
+                              "name": "table2",
+                              "properties": {
+                                "columns": [
+                                  {
+                                    "dataPath": "MessageId",
+                                    "header": "MessageId",
+                                    "id": "feec424b-68e6-485c-8756-005e64f69543",
+                                    "isHidden": false
+                                  },
+                                  {
+                                    "dataPath": "Body",
+                                    "header": "Body",
+                                    "id": "be906fad-9633-42e0-855f-8538944a2b3a",
+                                    "isHidden": false
+                                  },
+                                  {
+                                    "dataPath": "MD5OfBody",
+                                    "header": "MD5OfBody",
+                                    "id": "3530b56f-b61d-4225-85e0-0c67ea37fe46",
+                                    "isHidden": true
+                                  },
+                                  {
+                                    "dataPath": "MessageAttributes",
+                                    "header": "MessageAttributes",
+                                    "id": "abc1852a-a2f0-4a11-860d-db194332dd39",
+                                    "isHidden": true
+                                  },
+                                  {
+                                    "dataPath": "ReceiptHandle",
+                                    "header": "ReceiptHandle",
+                                    "id": "65211be7-d8c4-4103-b429-041334ac4a59",
+                                    "isHidden": true
+                                  }
+                                ],
+                                "data": "${sourcePeek.outputs}",
+                                "isLoading": "${dlqPeek.isLoading || sourcePeek.isLoading}",
+                                "isVisible": "true",
+                                "pageSize": "10",
+                                "paginationType": "client_side",
+                                "rowButtons": [],
+                                "summary": "false"
+                              },
+                              "type": "table"
+                            }
+                          ],
+                          "isVisible": true,
+                          "layout": {
+                            "default": {
+                              "height": 28,
+                              "width": 12,
+                              "x": 0,
+                              "y": 3
+                            }
+                          }
+                        },
+                        "type": "gridCell"
+                      },
+                      {
+                        "events": [],
+                        "name": "gridCell3",
+                        "properties": {
+                          "children": [
+                            {
+                              "events": [],
+                              "name": "table1",
+                              "properties": {
+                                "columns": [
+                                  {
+                                    "dataPath": "MessageId",
+                                    "header": "MessageId",
+                                    "id": "f7ef29bf-d1ab-48b3-bf0b-755162c3c8dd",
+                                    "isHidden": false
+                                  },
+                                  {
+                                    "dataPath": "Body",
+                                    "header": "Body",
+                                    "id": "a65d95d3-e4ca-4eee-a7e8-e7021e9bb86e",
+                                    "isHidden": false
+                                  },
+                                  {
+                                    "dataPath": "MD5OfBody",
+                                    "header": "MD5OfBody",
+                                    "id": "546aac0c-3c36-47da-9f74-abcd9faf0bbf",
+                                    "isHidden": true
+                                  },
+                                  {
+                                    "dataPath": "MessageAttributes",
+                                    "header": "MessageAttributes",
+                                    "id": "02fcb054-d22f-4030-ad06-a4ac26abd930",
+                                    "isHidden": true
+                                  },
+                                  {
+                                    "dataPath": "ReceiptHandle",
+                                    "header": "ReceiptHandle",
+                                    "id": "5e7cfe09-6d12-4afc-9b05-99de3d58493f",
+                                    "isHidden": true
+                                  }
+                                ],
+                                "data": "${dlqPeek.outputs}",
+                                "isLoading": "${dlqPeek.isLoading || sourcePeek.isLoading}",
+                                "isVisible": "true",
+                                "pageSize": "10",
+                                "paginationType": "client_side",
+                                "rowButtons": [],
+                                "summary": "false"
+                              },
+                              "type": "table"
+                            }
+                          ],
+                          "isVisible": true,
+                          "layout": {
+                            "default": {
+                              "height": 34,
+                              "width": 12,
+                              "x": 0,
+                              "y": 37
+                            }
+                          }
+                        },
+                        "type": "gridCell"
+                      },
+                      {
+                        "events": [],
+                        "name": "gridCell4",
+                        "properties": {
+                          "children": [
+                            {
+                              "events": [],
+                              "name": "text1",
+                              "properties": {
+                                "content": "**Source Messages**",
+                                "contentType": "markdown",
+                                "isVisible": "true"
+                              },
+                              "type": "text"
+                            }
+                          ],
+                          "isVisible": true,
+                          "layout": {
+                            "default": {
+                              "height": 3,
+                              "width": 3,
+                              "x": 0,
+                              "y": 0
+                            }
+                          }
+                        },
+                        "type": "gridCell"
+                      },
+                      {
+                        "events": [],
+                        "name": "gridCell5",
+                        "properties": {
+                          "children": [
+                            {
+                              "events": [],
+                              "name": "text2",
+                              "properties": {
+                                "content": "**DLQ Messages**\n",
+                                "contentType": "markdown",
+                                "isVisible": "true"
+                              },
+                              "type": "text"
+                            }
+                          ],
+                          "isVisible": true,
+                          "layout": {
+                            "default": {
+                              "height": 3,
+                              "width": 4,
+                              "x": 0,
+                              "y": 34
+                            }
+                          }
+                        },
+                        "type": "gridCell"
+                      }
+                    ],
+                    "isVisible": true
+                  },
+                  "type": "grid"
+                }
+              ],
+              "isVisible": true,
+              "title": "Peek Queues"
+            },
+            "type": "modal"
+          },
+          {
+            "events": [],
+            "name": "gridCell1",
+            "properties": {
+              "children": [
+                {
+                  "events": [],
+                  "name": "text0",
+                  "properties": {
+                    "content": "**Last updated**: ${sqsList.outputs?.lastUpdated}",
+                    "contentType": "markdown",
+                    "isVisible": "true",
+                    "textAlign": "right",
+                    "verticalAlign": "center"
+                  },
+                  "type": "text"
+                }
+              ],
+              "isVisible": true,
+              "layout": {
+                "default": {
+                  "height": 4,
+                  "width": 2,
+                  "x": 9,
+                  "y": 21
+                }
+              }
+            },
+            "type": "gridCell"
+          },
+          {
+            "events": [],
+            "name": "gridCell6",
+            "properties": {
+              "children": [
+                {
+                  "events": [
+                    {
+                      "name": "click",
+                      "queryName": "sqsList",
+                      "type": "triggerQuery"
+                    }
+                  ],
+                  "name": "button3",
+                  "properties": {
+                    "isDisabled": "false",
+                    "isLoading": "false",
+                    "isVisible": "true",
+                    "label": "Refresh"
+                  },
+                  "type": "button"
+                }
+              ],
+              "isVisible": true,
+              "layout": {
+                "default": {
+                  "height": 4,
+                  "width": 2,
+                  "x": 7,
+                  "y": 21
+                }
+              }
+            },
+            "type": "gridCell"
+          },
+          {
+            "events": [],
+            "name": "gridCell7",
+            "properties": {
+              "children": [
+                {
+                  "events": [],
+                  "name": "text3",
+                  "properties": {
+                    "content": "# SQS Queue Manager",
+                    "contentType": "markdown",
+                    "isVisible": "true",
+                    "textAlign": "left",
+                    "verticalAlign": "top"
+                  },
+                  "type": "text"
+                }
+              ],
+              "isVisible": "true",
+              "layout": {
+                "default": {
+                  "height": 5,
+                  "width": 3,
+                  "x": 1,
+                  "y": 12
+                }
+              }
+            },
+            "type": "gridCell"
+          },
+          {
+            "events": [],
+            "name": "gridCell8",
+            "properties": {
+              "children": [
+                {
+                  "events": [],
+                  "name": "name",
+                  "properties": {
+                    "defaultValue": "__RESOURCE_NAME_PREFIX__",
+                    "isLoading": "false",
+                    "isVisible": "true",
+                    "placeholder": "Filter by queue name",
+                    "size": "md"
+                  },
+                  "type": "search"
+                }
+              ],
+              "isVisible": "true",
+              "layout": {
+                "default": {
+                  "height": 6,
+                  "width": 6,
+                  "x": 1,
+                  "y": 20
+                }
+              }
+            },
+            "type": "gridCell"
+          },
+          {
+            "events": [],
+            "name": "gridCell9",
+            "properties": {
+              "children": [
+                {
+                  "events": [],
+                  "name": "calloutValue0",
+                  "properties": {
+                    "isDisabled": false,
+                    "isLoading": "${sqsList.isLoading}",
+                    "isVisible": "true",
+                    "label": "Total",
+                    "size": "sm",
+                    "style": "green",
+                    "unit": "queues",
+                    "value": "${sqsList.outputs?.queues?.length}"
+                  },
+                  "type": "calloutValue"
+                }
+              ],
+              "isVisible": "true",
+              "layout": {
+                "default": {
+                  "height": 10,
+                  "width": 2,
+                  "x": 9,
+                  "y": 11
+                }
+              }
+            },
+            "type": "gridCell"
+          },
+          {
+            "events": [],
+            "name": "gridCell10",
+            "properties": {
+              "children": [
+                {
+                  "events": [],
+                  "name": "calloutValue1",
+                  "properties": {
+                    "isDisabled": false,
+                    "isLoading": "${sqsList.isLoading}",
+                    "isVisible": "true",
+                    "label": "Queues with DLQ",
+                    "size": "sm",
+                    "style": "orange",
+                    "unit": "queues",
+                    "value": "${sqsList.outputs?.queues?.filter(q => q.dlq_length !== 'empty').length}"
+                  },
+                  "type": "calloutValue"
+                }
+              ],
+              "isVisible": "true",
+              "layout": {
+                "default": {
+                  "height": 10,
+                  "width": 2,
+                  "x": 7,
+                  "y": 11
+                }
+              }
+            },
+            "type": "gridCell"
+          }
+        ],
+        "isVisible": true
+      },
+      "type": "grid"
+    }
+  ],
+  "description": "Peek, purge or redrive SQS queues",
+  "favorite": false,
+  "name": "Tara's App Thu, Feb 26, 1:14:11 pm - Manage SQS Queues",
+  "protectionLevel": "direct_publish",
+  "rootInstanceName": "grid0",
+  "selfService": false,
+  "tags": [
+    "aws"
+  ],
+  "runAsUserUuid": "3d9f43b4-c1aa-4627-9344-832129f29584",
+  "connections": [
+    {
+      "id": "__CONNECTION_ID__",
+      "name": "INTEGRATION_AWS"
+    }
+  ]
+}

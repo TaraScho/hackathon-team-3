@@ -1,0 +1,55 @@
+{
+    "id": "s3-set-canned-acl",
+    "name": "S3 Set Canned ACL",
+    "description": "Automate how you manage your S3 Bucket Access Control Lists.",
+    "categories": [
+        "SECURITY"
+    ],
+    "highlightedBundles": [
+        "com.datadoghq.aws.s3"
+    ],
+    "userTags": [
+        "security"
+    ],
+    "spec": {
+        "triggers": [
+            {
+                "workflowTrigger": {},
+                "startStepNames": [
+                    "Set_canned_ACL"
+                ]
+            }
+        ],
+        "inputSchema": {
+            "parameters": [
+                {
+                    "name": "bucketName",
+                    "label": "S3 Bucket Name",
+                    "type": "STRING"
+                },
+                {
+                    "name": "cannedACL",
+                    "label": "S3 Canned ACL Name",
+                    "type": "STRING"
+                }
+            ]
+        },
+        "steps": [
+            {
+                "actionId": "com.datadoghq.aws.s3.set_canned_acl",
+                "parameters": [
+                    {
+                        "name": "bucket",
+                        "value": "{{ Trigger.bucketName }}"
+                    },
+                    {
+                        "name": "cannedAcl",
+                        "value": "{{ Trigger.cannedACL }}"
+                    }
+                ],
+                "name": "Set_canned_ACL"
+            }
+        ]
+    },
+    "createdAt": "2022-09-02T12:18:38Z"
+}

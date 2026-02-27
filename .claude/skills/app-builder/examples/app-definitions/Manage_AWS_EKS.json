@@ -1,0 +1,1229 @@
+{
+  "queries": [
+    {
+      "id": "90d72195-9244-4d21-a5c0-347ab1c15618",
+      "name": "listClusters",
+      "type": "action",
+      "properties": {
+        "spec": {
+          "fqn": "com.datadoghq.aws.eks.listClusters",
+          "inputs": {
+            "region": "${regionSelect.value}"
+          },
+          "connectionId": "__CONNECTION_ID__"
+        }
+      }
+    },
+    {
+      "id": "a26617a0-9367-48a2-8621-94466d418b52",
+      "name": "describeCluster",
+      "type": "action",
+      "properties": {
+        "onlyTriggerManually": true,
+        "outputs": "${((outputs) => {// Use `outputs` to reference the query's unformatted output.\n\n// TODO: Apply transformations to the raw query output\n\nreturn outputs?.cluster})(self.rawOutputs)}",
+        "spec": {
+          "fqn": "com.datadoghq.aws.eks.describeCluster",
+          "inputs": {
+            "clusterName": "${clustersTable.selectedRow.content}",
+            "region": "${regionSelect.value}"
+          },
+          "connectionId": "__CONNECTION_ID__"
+        }
+      },
+      "events": [
+        {
+          "name": "executionFinished",
+          "queryName": "listTagsForResource",
+          "type": "triggerQuery"
+        }
+      ]
+    },
+    {
+      "id": "c4dd17c0-a16a-46f2-a181-1224491785a5",
+      "name": "listNodeGroups",
+      "type": "action",
+      "properties": {
+        "onlyTriggerManually": true,
+        "outputs": "${((outputs) => {// Use `outputs` to reference the query's unformatted output.\n\n// TODO: Apply transformations to the raw query output\n\nreturn outputs.nodegroups})(self.rawOutputs)}",
+        "spec": {
+          "fqn": "com.datadoghq.aws.eks.listNodegroups",
+          "inputs": {
+            "clusterName": "${clustersTable.selectedRow.content}",
+            "region": "${regionSelect.value}"
+          },
+          "connectionId": "__CONNECTION_ID__"
+        }
+      }
+    },
+    {
+      "id": "11bd77f3-8916-4660-8cac-e158c5269f5a",
+      "name": "listTagsForResource",
+      "type": "action",
+      "properties": {
+        "onlyTriggerManually": true,
+        "outputs": "${((outputs) => {// Use `outputs` to reference the query's unformatted output.\n\n// TODO: Apply transformations to the raw query output\n\nreturn Object.entries(outputs?.tags ?? {}).map(([name, value])=> ({\n    name,\n    value,\n}))})(self.rawOutputs)}",
+        "spec": {
+          "fqn": "com.datadoghq.aws.eks.listTagsForResource",
+          "inputs": {
+            "region": "${regionSelect.value}",
+            "resourceArn": "${describeCluster.outputs?.arn}"
+          },
+          "connectionId": "__CONNECTION_ID__"
+        }
+      }
+    },
+    {
+      "id": "e1ba3f07-5606-423d-b76c-222a174361b8",
+      "name": "deleteCluster",
+      "type": "action",
+      "properties": {
+        "onlyTriggerManually": true,
+        "requiresConfirmation": true,
+        "spec": {
+          "fqn": "com.datadoghq.aws.eks.deleteCluster",
+          "inputs": {
+            "clusterName": "${clustersTable.selectedRow.content}",
+            "region": "${regionSelect.value}"
+          },
+          "connectionId": "__CONNECTION_ID__"
+        }
+      }
+    },
+    {
+      "id": "130a4684-0283-4044-aab8-0288317d9dcb",
+      "name": "untagResource",
+      "type": "action",
+      "properties": {
+        "onlyTriggerManually": true,
+        "requiresConfirmation": true,
+        "spec": {
+          "fqn": "com.datadoghq.aws.eks.untagResource",
+          "inputs": {
+            "region": "${regionSelect.value}",
+            "resourceArn": "${describeCluster.outputs?.arn}",
+            "tagKeys": [
+              "${tagsTable.selectedRow?.content?.name}"
+            ]
+          },
+          "connectionId": "__CONNECTION_ID__"
+        }
+      },
+      "events": [
+        {
+          "name": "executionFinished",
+          "queryName": "listTagsForResource",
+          "type": "triggerQuery"
+        }
+      ]
+    },
+    {
+      "id": "c1ab45c6-e69f-45e6-a655-f08c805b4c19",
+      "name": "tagResource",
+      "type": "action",
+      "properties": {
+        "onlyTriggerManually": true,
+        "spec": {
+          "fqn": "com.datadoghq.aws.eks.tagResource",
+          "inputs": {
+            "region": "${regionSelect.value}",
+            "resourceArn": "${describeCluster.outputs?.arn}",
+            "tags": "${addTagInput.value}"
+          },
+          "connectionId": "__CONNECTION_ID__"
+        }
+      }
+    },
+    {
+      "id": "9e88608d-93ba-4ed4-abc5-c36ee53f3062",
+      "name": "updateClusterConfig",
+      "type": "action",
+      "properties": {
+        "onlyTriggerManually": true,
+        "spec": {
+          "fqn": "com.datadoghq.aws.eks.updateClusterConfig",
+          "inputs": {
+            "accessConfig": "${updateConfigInput.value.accessConfig}",
+            "clientRequestToken": "${updateConfigInput.value.clientRequestToken}",
+            "logging": "${updateConfigInput.value.logging}",
+            "name": "${clustersTable.selectedRow.content}",
+            "region": "${regionSelect.value}",
+            "resourcesVpcConfig": "${updateConfigInput.value.resourcesVpcConfig}"
+          },
+          "connectionId": "__CONNECTION_ID__"
+        }
+      }
+    },
+    {
+      "id": "f81c6dca-757b-4d5f-9342-e5ea8fbf87ef",
+      "name": "awsRegion",
+      "type": "stateVariable",
+      "properties": {
+        "defaultValue": "us-east-1"
+      }
+    },
+    {
+      "id": "949724eb-1441-4a11-86b7-3308b4311206",
+      "name": "awsRegionList",
+      "type": "stateVariable",
+      "properties": {
+        "defaultValue": "${[\n    {\n        \"label\": \"US East (Ohio)\",\n        \"value\": \"us-east-2\"\n    },\n    {\n        \"label\": \"US East (N. Virginia)\",\n        \"value\": \"us-east-1\"\n    },\n    {\n        \"label\": \"US West (N. California)\",\n        \"value\": \"us-west-1\"\n    },\n    {\n        \"label\": \"US West (Oregon)\",\n        \"value\": \"us-west-2\"\n    },\n    {\n        \"label\": \"Africa (Cape Town)\",\n        \"value\": \"af-south-1\"\n    },\n    {\n        \"label\": \"Asia Pacific (Hong Kong)\",\n        \"value\": \"ap-east-1\"\n    },\n    {\n        \"label\": \"Asia Pacific (Hyderabad)\",\n        \"value\": \"ap-south-2\"\n    },\n    {\n        \"label\": \"Asia Pacific (Jakarta)\",\n        \"value\": \"ap-southeast-3\"\n    },\n    {\n        \"label\": \"Asia Pacific (Malaysia)\",\n        \"value\": \"ap-southeast-5\"\n    },\n    {\n        \"label\": \"Asia Pacific (Melbourne)\",\n        \"value\": \"ap-southeast-4\"\n    },\n    {\n        \"label\": \"Asia Pacific (Mumbai)\",\n        \"value\": \"ap-south-1\"\n    },\n    {\n        \"label\": \"Asia Pacific (Osaka)\",\n        \"value\": \"ap-northeast-3\"\n    },\n    {\n        \"label\": \"Asia Pacific (Seoul)\",\n        \"value\": \"ap-northeast-2\"\n    },\n    {\n        \"label\": \"Asia Pacific (Singapore)\",\n        \"value\": \"ap-southeast-1\"\n    },\n    {\n        \"label\": \"Asia Pacific (Sydney)\",\n        \"value\": \"ap-southeast-2\"\n    },\n    {\n        \"label\": \"Asia Pacific (Thailand)\",\n        \"value\": \"ap-southeast-7\"\n    },\n    {\n        \"label\": \"Asia Pacific (Tokyo)\",\n        \"value\": \"ap-northeast-1\"\n    },\n    {\n        \"label\": \"Canada (Central)\",\n        \"value\": \"ca-central-1\"\n    },\n    {\n        \"label\": \"Canada West (Calgary)\",\n        \"value\": \"ca-west-1\"\n    },\n    {\n        \"label\": \"Europe (Frankfurt)\",\n        \"value\": \"eu-central-1\"\n    },\n    {\n        \"label\": \"Europe (Ireland)\",\n        \"value\": \"eu-west-1\"\n    },\n    {\n        \"label\": \"Europe (London)\",\n        \"value\": \"eu-west-2\"\n    },\n    {\n        \"label\": \"Europe (Milan)\",\n        \"value\": \"eu-south-1\"\n    },\n    {\n        \"label\": \"Europe (Paris)\",\n        \"value\": \"eu-west-3\"\n    },\n    {\n        \"label\": \"Europe (Spain)\",\n        \"value\": \"eu-south-2\"\n    },\n    {\n        \"label\": \"Europe (Stockholm)\",\n        \"value\": \"eu-north-1\"\n    },\n    {\n        \"label\": \"Europe (Zurich)\",\n        \"value\": \"eu-central-2\"\n    },\n    {\n        \"label\": \"Israel (Tel Aviv)\",\n        \"value\": \"il-central-1\"\n    },\n    {\n        \"label\": \"Mexico (Central)\",\n        \"value\": \"mx-central-1\"\n    },\n    {\n        \"label\": \"Middle East (Bahrain)\",\n        \"value\": \"me-south-1\"\n    },\n    {\n        \"label\": \"Middle East (UAE)\",\n        \"value\": \"me-central-1\"\n    },\n    {\n        \"label\": \"South America (São Paulo)\",\n        \"value\": \"sa-east-1\"\n    },\n    {\n        \"label\": \"AWS GovCloud (US-East)\",\n        \"value\": \"us-gov-east-1\"\n    },\n    {\n        \"label\": \"AWS GovCloud (US-West)\",\n        \"value\": \"us-gov-west-1\"\n    },\n    {\n        \"label\": \"Production\",\n        \"value\": \"production\"\n    }\n]}"
+      }
+    }
+  ],
+  "id": "58276276-48d3-4a31-8f61-34961fc821d8",
+  "components": [
+    {
+      "events": [],
+      "name": "grid0",
+      "properties": {
+        "backgroundColor": "blue",
+        "children": [
+          {
+            "events": [],
+            "name": "gridCell0",
+            "properties": {
+              "children": [
+                {
+                  "events": [],
+                  "name": "clustersTable",
+                  "properties": {
+                    "columns": [
+                      {
+                        "dataPath": "Column 0",
+                        "disableSortBy": false,
+                        "header": "Cluster Name",
+                        "id": "69f61bd6-aee8-4f5e-a92d-f6c710224a7a"
+                      },
+                      {
+                        "dataPath": "Task Description",
+                        "header": "Task Description",
+                        "isDeleted": true,
+                        "isHidden": false
+                      },
+                      {
+                        "dataPath": "Progress",
+                        "disableSortBy": false,
+                        "formatter": {
+                          "type": "percent"
+                        },
+                        "header": "Progress",
+                        "id": "d1824d64-24f0-4995-97b2-96308af4de5c",
+                        "isDeleted": true
+                      },
+                      {
+                        "dataPath": "Priority",
+                        "disableSortBy": false,
+                        "formatter": {
+                          "options": [
+                            {
+                              "level": "danger",
+                              "value": "High"
+                            },
+                            {
+                              "level": "warning",
+                              "value": "Medium"
+                            }
+                          ],
+                          "type": "pill"
+                        },
+                        "header": "Priority",
+                        "id": "9ed8734b-0483-4627-a572-b8cbf238aa7d",
+                        "isDeleted": true
+                      },
+                      {
+                        "dataPath": "Assigned To",
+                        "formatter": {
+                          "type": "link"
+                        },
+                        "header": "Assigned To",
+                        "id": "1f0d8418-d47d-4f1d-90b8-638fd49766ee",
+                        "isDeleted": true,
+                        "isHidden": false
+                      },
+                      {
+                        "dataPath": "Due Date",
+                        "disableSortBy": false,
+                        "formatter": {
+                          "format": "LARGE_WITHOUT_TIME",
+                          "type": "formatted_time"
+                        },
+                        "header": "Due Date",
+                        "id": "7126bb39-3a5a-43b1-87ee-9c4371dcd3b4",
+                        "isDeleted": true
+                      }
+                    ],
+                    "data": "${listClusters?.outputs?.clusters}",
+                    "globalFilter": true,
+                    "isLoading": "${listClusters?.isLoading}",
+                    "isScrollable": "vertical",
+                    "isVisible": true,
+                    "isWrappable": false,
+                    "pageSize": 10,
+                    "paginationType": "client_side",
+                    "rowButtons": [
+                      {
+                        "events": [
+                          {
+                            "callback": "${ () => {\n    describeCluster.fetch();\n    listNodeGroups.fetch();\n    listTagsForResource.fetch();\n    clusterInfoModal.setIsOpen(true);\n} }",
+                            "name": "click",
+                            "type": "custom"
+                          }
+                        ],
+                        "name": "button0",
+                        "properties": {
+                          "isBorderless": false,
+                          "isDisabled": false,
+                          "isPrimary": false,
+                          "isVisible": true,
+                          "label": "More Info"
+                        },
+                        "type": "button"
+                      },
+                      {
+                        "events": [
+                          {
+                            "name": "click",
+                            "queryName": "deleteCluster",
+                            "type": "triggerQuery"
+                          }
+                        ],
+                        "name": "button1",
+                        "properties": {
+                          "isBorderless": false,
+                          "isDisabled": false,
+                          "isPrimary": true,
+                          "isVisible": true,
+                          "label": "Delete Cluster",
+                          "level": "danger"
+                        },
+                        "type": "button"
+                      },
+                      {
+                        "events": [
+                          {
+                            "callback": "${ () => {\n    describeCluster.fetch();\n    updateClusterConfigModal.setIsOpen(true);\n} }",
+                            "name": "click",
+                            "type": "custom"
+                          }
+                        ],
+                        "name": "button2",
+                        "properties": {
+                          "isBorderless": false,
+                          "isDisabled": false,
+                          "isPrimary": true,
+                          "isVisible": true,
+                          "label": "Update Cluster Config"
+                        },
+                        "type": "button"
+                      }
+                    ],
+                    "summary": true,
+                    "totalCount": 20
+                  },
+                  "type": "table"
+                }
+              ],
+              "isVisible": "true",
+              "layout": {
+                "default": {
+                  "height": 56,
+                  "width": 12,
+                  "x": 0,
+                  "y": 25
+                }
+              }
+            },
+            "type": "gridCell"
+          },
+          {
+            "events": [],
+            "name": "clusterInfoModal",
+            "properties": {
+              "children": [
+                {
+                  "events": [],
+                  "name": "grid1",
+                  "properties": {
+                    "children": [
+                      {
+                        "events": [],
+                        "name": "gridCell1",
+                        "properties": {
+                          "children": [
+                            {
+                              "events": [],
+                              "name": "clusterInfo",
+                              "properties": {
+                                "content": "# Cluster name: ${describeCluster?.outputs?.name}",
+                                "contentType": "markdown",
+                                "isVisible": true,
+                                "textAlign": "left",
+                                "verticalAlign": "top"
+                              },
+                              "type": "text"
+                            }
+                          ],
+                          "isVisible": "true",
+                          "layout": {
+                            "default": {
+                              "height": 5,
+                              "width": 8,
+                              "x": 0,
+                              "y": 0
+                            }
+                          }
+                        },
+                        "type": "gridCell"
+                      },
+                      {
+                        "events": [],
+                        "name": "gridCell2",
+                        "properties": {
+                          "children": [
+                            {
+                              "events": [],
+                              "name": "clusterStatus",
+                              "properties": {
+                                "isDisabled": false,
+                                "isLoading": false,
+                                "isVisible": true,
+                                "label": "STatus",
+                                "size": "sm",
+                                "style": "${function() {\n    const status = describeCluster.outputs.status;\n    switch (status) {\n        case 'ACTIVE':\n            return 'green';\n        case 'FAILED':\n        case 'DELETING':\n            return 'red';\n        case 'CREATING':\n        case 'UPDATING':\n        case 'PENDING':\n            return 'orange';\n        default:\n            return 'Unknown'; // Default case for unexpected statuses\n    }\n}()\n}",
+                                "unit": "",
+                                "value": "${describeCluster.outputs.status}"
+                              },
+                              "type": "calloutValue"
+                            }
+                          ],
+                          "isVisible": "true",
+                          "layout": {
+                            "default": {
+                              "height": 9,
+                              "width": 4,
+                              "x": 8,
+                              "y": 0
+                            }
+                          }
+                        },
+                        "type": "gridCell"
+                      },
+                      {
+                        "events": [],
+                        "name": "gridCell3",
+                        "properties": {
+                          "children": [
+                            {
+                              "events": [],
+                              "name": "clusterInfoTabs",
+                              "properties": {
+                                "alignment": "horizontal",
+                                "children": [
+                                  {
+                                    "events": [],
+                                    "name": "grid2",
+                                    "properties": {
+                                      "children": [
+                                        {
+                                          "events": [],
+                                          "name": "gridCell4",
+                                          "properties": {
+                                            "children": [
+                                              {
+                                                "events": [],
+                                                "name": "nodeGroupsTable",
+                                                "properties": {
+                                                  "columns": [
+                                                    {
+                                                      "dataPath": "Column 0",
+                                                      "disableSortBy": false,
+                                                      "header": "Group Name",
+                                                      "id": "9f491b5c-dad7-44aa-a78e-663d52820f53"
+                                                    },
+                                                    {
+                                                      "dataPath": "Task Description",
+                                                      "header": "Task Description",
+                                                      "isDeleted": true,
+                                                      "isHidden": false
+                                                    },
+                                                    {
+                                                      "dataPath": "Progress",
+                                                      "disableSortBy": false,
+                                                      "formatter": {
+                                                        "type": "percent"
+                                                      },
+                                                      "header": "Progress",
+                                                      "id": "dcd55825-15db-4a55-8946-24983b5c7be6",
+                                                      "isDeleted": true
+                                                    },
+                                                    {
+                                                      "dataPath": "Priority",
+                                                      "disableSortBy": false,
+                                                      "formatter": {
+                                                        "options": [
+                                                          {
+                                                            "level": "danger",
+                                                            "value": "High"
+                                                          },
+                                                          {
+                                                            "level": "warning",
+                                                            "value": "Medium"
+                                                          }
+                                                        ],
+                                                        "type": "pill"
+                                                      },
+                                                      "header": "Priority",
+                                                      "id": "71005e1d-9b36-4add-bcc1-1af3f3a1b944",
+                                                      "isDeleted": true
+                                                    },
+                                                    {
+                                                      "dataPath": "Assigned To",
+                                                      "formatter": {
+                                                        "type": "link"
+                                                      },
+                                                      "header": "Assigned To",
+                                                      "id": "10423b68-518e-4fa3-a996-4ed1fe313f66",
+                                                      "isDeleted": true,
+                                                      "isHidden": false
+                                                    },
+                                                    {
+                                                      "dataPath": "Due Date",
+                                                      "disableSortBy": false,
+                                                      "formatter": {
+                                                        "format": "LARGE_WITHOUT_TIME",
+                                                        "type": "formatted_time"
+                                                      },
+                                                      "header": "Due Date",
+                                                      "id": "1a520e1c-d8e5-4e0b-881d-b8c51a19345a",
+                                                      "isDeleted": true
+                                                    }
+                                                  ],
+                                                  "data": "${listNodeGroups?.outputs}",
+                                                  "globalFilter": false,
+                                                  "isLoading": "${listNodeGroups.isLoading}",
+                                                  "isScrollable": "vertical",
+                                                  "isVisible": true,
+                                                  "isWrappable": false,
+                                                  "pageSize": 10,
+                                                  "paginationType": "client_side",
+                                                  "rowButtons": [],
+                                                  "summary": true,
+                                                  "totalCount": 10
+                                                },
+                                                "type": "table"
+                                              }
+                                            ],
+                                            "isVisible": "true",
+                                            "layout": {
+                                              "default": {
+                                                "height": 23,
+                                                "width": 12,
+                                                "x": 0,
+                                                "y": 0
+                                              }
+                                            }
+                                          },
+                                          "type": "gridCell"
+                                        }
+                                      ]
+                                    },
+                                    "type": "grid"
+                                  },
+                                  {
+                                    "events": [],
+                                    "name": "grid3",
+                                    "properties": {
+                                      "children": [
+                                        {
+                                          "events": [],
+                                          "name": "gridCell5",
+                                          "properties": {
+                                            "children": [
+                                              {
+                                                "events": [],
+                                                "name": "tagsTable",
+                                                "properties": {
+                                                  "columns": [
+                                                    {
+                                                      "dataPath": "Task Description",
+                                                      "header": "Task Description",
+                                                      "isDeleted": true,
+                                                      "isHidden": false
+                                                    },
+                                                    {
+                                                      "dataPath": "Progress",
+                                                      "disableSortBy": false,
+                                                      "formatter": {
+                                                        "type": "percent"
+                                                      },
+                                                      "header": "Progress",
+                                                      "id": "ef6f2a20-2bca-4765-9565-dd3aa10c4306",
+                                                      "isDeleted": true
+                                                    },
+                                                    {
+                                                      "dataPath": "Priority",
+                                                      "disableSortBy": false,
+                                                      "formatter": {
+                                                        "options": [
+                                                          {
+                                                            "level": "danger",
+                                                            "value": "High"
+                                                          },
+                                                          {
+                                                            "level": "warning",
+                                                            "value": "Medium"
+                                                          }
+                                                        ],
+                                                        "type": "pill"
+                                                      },
+                                                      "header": "Priority",
+                                                      "id": "c3f3ad3e-1ca4-4569-87b2-70171090154c",
+                                                      "isDeleted": true
+                                                    },
+                                                    {
+                                                      "dataPath": "Assigned To",
+                                                      "formatter": {
+                                                        "type": "link"
+                                                      },
+                                                      "header": "Assigned To",
+                                                      "id": "dcafc5e6-951b-4737-8f9f-b1300133c2ec",
+                                                      "isDeleted": true,
+                                                      "isHidden": false
+                                                    },
+                                                    {
+                                                      "dataPath": "Due Date",
+                                                      "disableSortBy": false,
+                                                      "formatter": {
+                                                        "format": "LARGE_WITHOUT_TIME",
+                                                        "type": "formatted_time"
+                                                      },
+                                                      "header": "Due Date",
+                                                      "id": "7d84a0fd-5917-4af0-a352-2fecec69c6a3",
+                                                      "isDeleted": true
+                                                    },
+                                                    {
+                                                      "dataPath": "name",
+                                                      "header": "name",
+                                                      "id": "e5cf3fc8-62c6-4acc-aafa-5614dde2a787",
+                                                      "isHidden": false
+                                                    },
+                                                    {
+                                                      "dataPath": "value",
+                                                      "header": "value",
+                                                      "id": "e9e95fb6-6bf3-42ec-ae74-ea8aba6360fc",
+                                                      "isHidden": false
+                                                    }
+                                                  ],
+                                                  "data": "${listTagsForResource?.outputs}",
+                                                  "globalFilter": false,
+                                                  "isLoading": false,
+                                                  "isScrollable": "vertical",
+                                                  "isVisible": true,
+                                                  "isWrappable": false,
+                                                  "pageSize": 10,
+                                                  "paginationType": "client_side",
+                                                  "rowButtons": [
+                                                    {
+                                                      "events": [
+                                                        {
+                                                          "name": "click",
+                                                          "queryName": "untagResource",
+                                                          "type": "triggerQuery"
+                                                        }
+                                                      ],
+                                                      "name": "button3",
+                                                      "properties": {
+                                                        "isBorderless": false,
+                                                        "isDisabled": false,
+                                                        "isPrimary": true,
+                                                        "isVisible": true,
+                                                        "label": "Remove Tag",
+                                                        "level": "danger"
+                                                      },
+                                                      "type": "button"
+                                                    }
+                                                  ],
+                                                  "summary": true,
+                                                  "totalCount": 10
+                                                },
+                                                "type": "table"
+                                              }
+                                            ],
+                                            "isVisible": "true",
+                                            "layout": {
+                                              "default": {
+                                                "height": 19,
+                                                "width": 12,
+                                                "x": 0,
+                                                "y": 0
+                                              }
+                                            }
+                                          },
+                                          "type": "gridCell"
+                                        },
+                                        {
+                                          "events": [],
+                                          "name": "gridCell6",
+                                          "properties": {
+                                            "children": [
+                                              {
+                                                "events": [
+                                                  {
+                                                    "modalName": "addTagsModal",
+                                                    "name": "click",
+                                                    "type": "openModal"
+                                                  }
+                                                ],
+                                                "name": "addTagsButton",
+                                                "properties": {
+                                                  "isBorderless": false,
+                                                  "isDisabled": false,
+                                                  "isLoading": false,
+                                                  "isPrimary": true,
+                                                  "isVisible": true,
+                                                  "label": "Add Tags",
+                                                  "level": "default"
+                                                },
+                                                "type": "button"
+                                              }
+                                            ],
+                                            "isVisible": "true",
+                                            "layout": {
+                                              "default": {
+                                                "height": 4,
+                                                "width": 3,
+                                                "x": 9,
+                                                "y": 21
+                                              }
+                                            }
+                                          },
+                                          "type": "gridCell"
+                                        }
+                                      ]
+                                    },
+                                    "type": "grid"
+                                  }
+                                ],
+                                "hideBody": false,
+                                "hideTabs": false,
+                                "impact": "low",
+                                "isVisible": true,
+                                "style": "default",
+                                "tabs": [
+                                  {
+                                    "label": "Node Groups",
+                                    "value": "grid2"
+                                  },
+                                  {
+                                    "label": "Tags",
+                                    "value": "grid3"
+                                  }
+                                ]
+                              },
+                              "type": "tabs"
+                            }
+                          ],
+                          "isVisible": "true",
+                          "layout": {
+                            "default": {
+                              "height": 36,
+                              "width": 12,
+                              "x": 0,
+                              "y": 12
+                            }
+                          }
+                        },
+                        "type": "gridCell"
+                      },
+                      {
+                        "events": [],
+                        "name": "gridCell18",
+                        "properties": {
+                          "children": [
+                            {
+                              "events": [],
+                              "name": "text5",
+                              "properties": {
+                                "content": "**Platform version**: ${describeCluster.outputs.platformVersion}",
+                                "contentType": "markdown",
+                                "isVisible": true,
+                                "textAlign": "left",
+                                "verticalAlign": "top"
+                              },
+                              "type": "text"
+                            }
+                          ],
+                          "isVisible": "true",
+                          "layout": {
+                            "default": {
+                              "height": 3,
+                              "width": 7,
+                              "x": 0,
+                              "y": 5
+                            }
+                          }
+                        },
+                        "type": "gridCell"
+                      },
+                      {
+                        "events": [],
+                        "name": "gridCell19",
+                        "properties": {
+                          "children": [
+                            {
+                              "events": [],
+                              "name": "text6",
+                              "properties": {
+                                "content": "**Role ARN**: ${describeCluster.outputs.roleArn}",
+                                "contentType": "markdown",
+                                "isVisible": true,
+                                "textAlign": "left",
+                                "verticalAlign": "top"
+                              },
+                              "type": "text"
+                            }
+                          ],
+                          "isVisible": "true",
+                          "layout": {
+                            "default": {
+                              "height": 3,
+                              "width": 12,
+                              "x": 0,
+                              "y": 9
+                            }
+                          }
+                        },
+                        "type": "gridCell"
+                      }
+                    ]
+                  },
+                  "type": "grid"
+                }
+              ],
+              "isVisible": true,
+              "size": "lg",
+              "title": "${clustersTable.selectedRow.content['Column 0']}"
+            },
+            "type": "modal"
+          },
+          {
+            "events": [],
+            "name": "updateClusterConfigModal",
+            "properties": {
+              "children": [
+                {
+                  "events": [],
+                  "name": "grid4",
+                  "properties": {
+                    "children": [
+                      {
+                        "events": [],
+                        "name": "gridCell1_copy",
+                        "properties": {
+                          "children": [],
+                          "isVisible": "true",
+                          "layout": {
+                            "default": {
+                              "height": 17,
+                              "width": 8,
+                              "x": 0,
+                              "y": 89
+                            }
+                          }
+                        },
+                        "type": "gridCell"
+                      },
+                      {
+                        "events": [],
+                        "name": "gridCell10",
+                        "properties": {
+                          "children": [
+                            {
+                              "events": [],
+                              "name": "updateConfigInput",
+                              "properties": {
+                                "defaultValue": "${JSON.stringify({\n    resourcesVpcConfig: describeCluster.outputs?.resourcesVpcConfig ?? {},\n    logging: describeCluster.outputs?.logging ?? {},\n    clientRequestToken: describeCluster.outputs?.clientRequestToken,\n    accessConfig: describeCluster.outputs?.accessConfig ?? {}\n}, null, 4)}",
+                                "isVisible": true,
+                                "label": "Updated Config",
+                                "readOnly": "false"
+                              },
+                              "type": "jsonInput"
+                            }
+                          ],
+                          "isVisible": "true",
+                          "layout": {
+                            "default": {
+                              "height": 48,
+                              "width": 12,
+                              "x": 0,
+                              "y": 0
+                            }
+                          }
+                        },
+                        "type": "gridCell"
+                      },
+                      {
+                        "events": [],
+                        "name": "gridCell12",
+                        "properties": {
+                          "children": [
+                            {
+                              "events": [],
+                              "name": "button5",
+                              "properties": {
+                                "isBorderless": false,
+                                "isDisabled": false,
+                                "isLoading": false,
+                                "isPrimary": true,
+                                "isVisible": true,
+                                "label": "Update Config",
+                                "level": "default"
+                              },
+                              "type": "button"
+                            }
+                          ],
+                          "isVisible": "true",
+                          "layout": {
+                            "default": {
+                              "height": 4,
+                              "width": 4,
+                              "x": 8,
+                              "y": 49
+                            }
+                          }
+                        },
+                        "type": "gridCell"
+                      },
+                      {
+                        "events": [],
+                        "name": "gridCell13",
+                        "properties": {
+                          "children": [
+                            {
+                              "events": [],
+                              "name": "text0",
+                              "properties": {
+                                "content": "_Config must be an object with the following keys:_\n\n```json\n{\n    \"resourcesVpcConfig\": \"\",\n    \"logging\": \"\",\n    \"clientRequestToken\": \"\",\n    \"accessConfig\": \"\"\n}\n```",
+                                "contentType": "markdown",
+                                "isVisible": "${updateConfigInput.value == null || typeof updateConfigInput.value !== 'object'}",
+                                "textAlign": "left",
+                                "verticalAlign": "top"
+                              },
+                              "type": "text"
+                            }
+                          ],
+                          "isVisible": "true",
+                          "layout": {
+                            "default": {
+                              "height": 23,
+                              "width": 12,
+                              "x": 0,
+                              "y": 53
+                            }
+                          }
+                        },
+                        "type": "gridCell"
+                      }
+                    ]
+                  },
+                  "type": "grid"
+                }
+              ],
+              "isVisible": true,
+              "size": "md",
+              "title": "${describeCluster.outputs.name}"
+            },
+            "type": "modal"
+          },
+          {
+            "events": [],
+            "name": "addTagsModal",
+            "properties": {
+              "children": [
+                {
+                  "events": [],
+                  "name": "grid5",
+                  "properties": {
+                    "children": [
+                      {
+                        "events": [],
+                        "name": "gridCell7",
+                        "properties": {
+                          "children": [
+                            {
+                              "events": [],
+                              "name": "addTagInput",
+                              "properties": {
+                                "defaultValue": "",
+                                "isVisible": true,
+                                "label": "Tags",
+                                "readOnly": "false"
+                              },
+                              "type": "jsonInput"
+                            }
+                          ],
+                          "isVisible": "true",
+                          "layout": {
+                            "default": {
+                              "height": 33,
+                              "width": 12,
+                              "x": 0,
+                              "y": 0
+                            }
+                          }
+                        },
+                        "type": "gridCell"
+                      },
+                      {
+                        "events": [],
+                        "name": "gridCell8",
+                        "properties": {
+                          "children": [
+                            {
+                              "events": [],
+                              "name": "addTagDoc",
+                              "properties": {
+                                "content": "Tags should be an array of strings or an array of objects, such as:\n```json\n[\n    {\n        Key: \"name\",\n        Value: \"value\",   \n    }\n]\n```",
+                                "contentType": "markdown",
+                                "isVisible": true,
+                                "textAlign": "left",
+                                "verticalAlign": "top"
+                              },
+                              "type": "text"
+                            }
+                          ],
+                          "isVisible": "true",
+                          "layout": {
+                            "default": {
+                              "height": 21,
+                              "width": 12,
+                              "x": 0,
+                              "y": 38
+                            }
+                          }
+                        },
+                        "type": "gridCell"
+                      },
+                      {
+                        "events": [],
+                        "name": "gridCell9",
+                        "properties": {
+                          "children": [
+                            {
+                              "events": [
+                                {
+                                  "name": "click",
+                                  "queryName": "tagResource",
+                                  "type": "triggerQuery"
+                                }
+                              ],
+                              "name": "button4",
+                              "properties": {
+                                "isBorderless": false,
+                                "isDisabled": "${addTagInput?.value === '' || addTagInput?.value == null || !Array.isArray(addTagInput?.value)}",
+                                "isLoading": false,
+                                "isPrimary": true,
+                                "isVisible": true,
+                                "label": "Add Tags",
+                                "level": "default"
+                              },
+                              "type": "button"
+                            }
+                          ],
+                          "isVisible": "true",
+                          "layout": {
+                            "default": {
+                              "height": 4,
+                              "width": 3,
+                              "x": 9,
+                              "y": 33
+                            }
+                          }
+                        },
+                        "type": "gridCell"
+                      },
+                      {
+                        "events": [],
+                        "name": "gridCell11",
+                        "properties": {
+                          "children": [
+                            {
+                              "events": [],
+                              "name": "text1",
+                              "properties": {
+                                "content": "_Tags should be an array of objects or strings_",
+                                "contentType": "markdown",
+                                "isVisible": "${addTagInput?.value != null && !Array.isArray(addTagInput?.value)}",
+                                "textAlign": "left",
+                                "verticalAlign": "top"
+                              },
+                              "type": "text"
+                            }
+                          ],
+                          "isVisible": "true",
+                          "layout": {
+                            "default": {
+                              "height": 3,
+                              "width": 9,
+                              "x": 0,
+                              "y": 34
+                            }
+                          }
+                        },
+                        "type": "gridCell"
+                      }
+                    ]
+                  },
+                  "type": "grid"
+                }
+              ],
+              "isVisible": true,
+              "size": "md",
+              "title": "Add Tags"
+            },
+            "type": "modal"
+          },
+          {
+            "events": [],
+            "name": "gridCell14",
+            "properties": {
+              "children": [
+                {
+                  "events": [],
+                  "name": "text2",
+                  "properties": {
+                    "content": " # Manage AWS EKS Clusters",
+                    "contentType": "markdown",
+                    "isVisible": true,
+                    "textAlign": "left",
+                    "verticalAlign": "top"
+                  },
+                  "type": "text"
+                }
+              ],
+              "isVisible": "true",
+              "layout": {
+                "default": {
+                  "height": 5,
+                  "width": 5,
+                  "x": 1,
+                  "y": 3
+                }
+              }
+            },
+            "type": "gridCell"
+          },
+          {
+            "events": [],
+            "name": "gridCell16",
+            "properties": {
+              "children": [
+                {
+                  "events": [],
+                  "name": "text4",
+                  "properties": {
+                    "content": "Manage, update or delete your AWS EKS clusters",
+                    "contentType": "markdown",
+                    "isVisible": true,
+                    "textAlign": "left",
+                    "verticalAlign": "top"
+                  },
+                  "type": "text"
+                }
+              ],
+              "isVisible": "true",
+              "layout": {
+                "default": {
+                  "height": 3,
+                  "width": 5,
+                  "x": 1,
+                  "y": 8
+                }
+              }
+            },
+            "type": "gridCell"
+          },
+          {
+            "events": [],
+            "name": "gridCell17",
+            "properties": {
+              "children": [
+                {
+                  "events": [],
+                  "name": "regionSelect",
+                  "properties": {
+                    "defaultValue": "${regionSelect.options[0].value}",
+                    "isDisabled": false,
+                    "isMultiselect": "false",
+                    "isVisible": true,
+                    "label": "Region",
+                    "options": "${awsRegionList.value}",
+                    "placeholder": "Select value"
+                  },
+                  "type": "select"
+                }
+              ],
+              "isVisible": "true",
+              "layout": {
+                "default": {
+                  "height": 7,
+                  "width": 4,
+                  "x": 0,
+                  "y": 17
+                }
+              }
+            },
+            "type": "gridCell"
+          },
+          {
+            "events": [],
+            "name": "gridCell20",
+            "properties": {
+              "children": [
+                {
+                  "events": [],
+                  "name": "integrationLogo0",
+                  "properties": {
+                    "horizontalAlign": "center",
+                    "integrationId": "amazon-eks",
+                    "isLoading": false,
+                    "isVisible": true,
+                    "verticalAlign": "center"
+                  },
+                  "type": "integrationLogo"
+                }
+              ],
+              "isVisible": "true",
+              "layout": {
+                "default": {
+                  "height": 11,
+                  "width": 1,
+                  "x": 0,
+                  "y": 2
+                }
+              }
+            },
+            "type": "gridCell"
+          }
+        ]
+      },
+      "type": "grid"
+    }
+  ],
+  "description": "Manage, update or delete your AWS EKS clusters",
+  "favorite": false,
+  "name": "Tara's App Thu, Feb 26, 1:15:02 pm - Manage AWS EKS",
+  "protectionLevel": "direct_publish",
+  "rootInstanceName": "grid0",
+  "selfService": false,
+  "tags": [
+    "aws"
+  ],
+  "runAsUserUuid": "3d9f43b4-c1aa-4627-9344-832129f29584",
+  "connections": [
+    {
+      "id": "__CONNECTION_ID__",
+      "name": "INTEGRATION_AWS"
+    }
+  ]
+}

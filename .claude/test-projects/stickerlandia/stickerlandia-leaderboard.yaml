@@ -1,0 +1,873 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Stickerlandia Leaderboard Service - ECS Fargate, SQS, EventBridge, API Gateway Routes
+
+Parameters:
+  SharedStackName:
+    Type: String
+    Description: Name of the shared infrastructure stack for importing outputs
+
+  ContainerImage:
+    Type: String
+    Description: ECR image URI for the leaderboard container
+
+  DatadogApiKeySecretArn:
+    Type: String
+    Description: Full ARN of the datadog/api-key secret (looked up by parent stack)
+
+  TeamLambdaLayerArn:
+    Type: String
+    Description: ARN of the team Lambda layer containing psycopg2 and other dependencies
+
+Resources:
+  #############################################################################
+  # SQS Queues - Sticker Assigned Events
+  #############################################################################
+
+  LeaderboardStickerAssignedDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: leaderboard-sticker-assigned-dlq
+      VisibilityTimeout: 120
+      MessageRetentionPeriod: 1209600  # 14 days
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: leaderboard
+
+  LeaderboardStickerAssignedQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: leaderboard-sticker-assigned
+      VisibilityTimeout: 30
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt LeaderboardStickerAssignedDLQ.Arn
+        maxReceiveCount: 3
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: leaderboard
+
+  # Allow EventBridge to send messages to the queue
+  LeaderboardStickerAssignedQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref LeaderboardStickerAssignedQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowEventBridgeToSendMessage
+            Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt LeaderboardStickerAssignedQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !Sub
+                  - "arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/${EventBusName}/leaderboard-sticker-assigned-rule"
+                  - EventBusName:
+                      Fn::ImportValue: !Sub "${SharedStackName}-EventBusName"
+
+  #############################################################################
+  # EventBridge Rule - Route Sticker Assigned Events to SQS
+  #############################################################################
+
+  LeaderboardStickerAssignedRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: leaderboard-sticker-assigned-rule
+      Description: Route sticker assigned events to leaderboard service SQS queue
+      EventBusName:
+        Fn::ImportValue: !Sub "${SharedStackName}-EventBusName"
+      EventPattern:
+        source:
+          - "stickerlandia.sticker-award"
+        detail-type:
+          - "sticker.assigned"
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt LeaderboardStickerAssignedQueue.Arn
+          Id: LeaderboardStickerAssignedTarget
+
+  #############################################################################
+  # Connection String Formatter - Custom Resource
+  # Creates a formatted connection string secret from Aurora credentials
+  #############################################################################
+
+  ConnectionStringFormatterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+        - PolicyName: ReadSourceSecret
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  Fn::ImportValue: !Sub "${SharedStackName}-DBSecretArn"
+        - PolicyName: ManageConnectionStringSecret
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:CreateSecret
+                  - secretsmanager:UpdateSecret
+                  - secretsmanager:DeleteSecret
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stickerlandia/leaderboard/*"
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: leaderboard
+
+  ConnectionStringFormatterLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: stickerlandia-leaderboard-conn-string-formatter
+      Runtime: nodejs20.x
+      Handler: index.handler
+      Timeout: 30
+      Role: !GetAtt ConnectionStringFormatterRole.Arn
+      Code:
+        ZipFile: |
+          const https = require("https");
+          const url = require("url");
+          const { SecretsManagerClient, GetSecretValueCommand, CreateSecretCommand, UpdateSecretCommand, DeleteSecretCommand } = require("@aws-sdk/client-secrets-manager");
+
+          async function sendResponse(event, context, status, data, physicalResourceId, reason) {
+            const responseBody = JSON.stringify({
+              Status: status,
+              Reason: reason || `See CloudWatch Log Stream: ${context.logStreamName}`,
+              PhysicalResourceId: physicalResourceId || context.logStreamName,
+              StackId: event.StackId,
+              RequestId: event.RequestId,
+              LogicalResourceId: event.LogicalResourceId,
+              Data: data || {}
+            });
+
+            console.log("Response body:", responseBody);
+
+            const parsedUrl = url.parse(event.ResponseURL);
+            const options = {
+              hostname: parsedUrl.hostname,
+              port: 443,
+              path: parsedUrl.path,
+              method: "PUT",
+              headers: {
+                "content-type": "",
+                "content-length": responseBody.length
+              }
+            };
+
+            return new Promise((resolve, reject) => {
+              const req = https.request(options, (res) => {
+                console.log(`CFN response status: ${res.statusCode}`);
+                resolve();
+              });
+              req.on("error", (err) => {
+                console.error("CFN response error:", err);
+                reject(err);
+              });
+              req.write(responseBody);
+              req.end();
+            });
+          }
+
+          async function createOrUpdateSecret(client, secretName, secretValue, description) {
+            let arn;
+            try {
+              const result = await client.send(new UpdateSecretCommand({
+                SecretId: secretName,
+                SecretString: secretValue,
+                Description: description,
+              }));
+              arn = result.ARN;
+              console.log(`Updated secret: ${secretName}, ARN: ${arn}`);
+            } catch (e) {
+              if (e.name === "ResourceNotFoundException") {
+                const result = await client.send(new CreateSecretCommand({
+                  Name: secretName,
+                  SecretString: secretValue,
+                  Description: description,
+                }));
+                arn = result.ARN;
+                console.log(`Created secret: ${secretName}, ARN: ${arn}`);
+              } else {
+                throw e;
+              }
+            }
+            return arn;
+          }
+
+          exports.handler = async (event, context) => {
+            console.log("Event:", JSON.stringify(event, null, 2));
+
+            const sourceSecretArn = event.ResourceProperties.SourceSecretArn;
+            const databaseName = event.ResourceProperties.DatabaseName;
+            const secretNamePrefix = event.ResourceProperties.SecretNamePrefix;
+            const dbHost = event.ResourceProperties.DatabaseHost;
+            const physicalResourceId = event.PhysicalResourceId || `${secretNamePrefix}-db-creds`;
+
+            const smClient = new SecretsManagerClient({});
+
+            try {
+              if (event.RequestType === "Delete") {
+                try {
+                  await smClient.send(new DeleteSecretCommand({
+                    SecretId: `${secretNamePrefix}/connection-string`,
+                    ForceDeleteWithoutRecovery: true
+                  }));
+                  console.log(`Deleted secret: ${secretNamePrefix}/connection-string`);
+                } catch (e) {
+                  if (e.name !== "ResourceNotFoundException") {
+                    console.warn(`Failed to delete secret:`, e);
+                  }
+                }
+                await sendResponse(event, context, "SUCCESS", {}, physicalResourceId);
+                return;
+              }
+
+              const secretResponse = await smClient.send(new GetSecretValueCommand({ SecretId: sourceSecretArn }));
+              const secret = JSON.parse(secretResponse.SecretString);
+
+              const host = dbHost || secret.host;
+              const port = secret.port || 5432;
+              const username = secret.username;
+              const password = secret.password;
+
+              if (!host || !username || password === undefined || password === null) {
+                throw new Error(`Missing required fields in RDS secret. host=${!!host}, username=${!!username}, password=${password !== undefined && password !== null}`);
+              }
+
+              const encodedPassword = encodeURIComponent(password);
+              const encodedUsername = encodeURIComponent(username);
+
+              const connStr = `postgresql://${encodedUsername}:${encodedPassword}@${host}:${port}/${databaseName}?sslmode=require`;
+
+              const connectionStringArn = await createOrUpdateSecret(
+                smClient,
+                `${secretNamePrefix}/connection-string`,
+                connStr,
+                `Database connection string for ${databaseName} (auto-generated)`
+              );
+
+              await sendResponse(event, context, "SUCCESS", {
+                ConnectionStringArn: connectionStringArn,
+                SecretName: `${secretNamePrefix}/connection-string`
+              }, physicalResourceId);
+
+            } catch (err) {
+              console.error("Error:", err);
+              await sendResponse(event, context, "FAILED", {}, physicalResourceId, err.message);
+            }
+          };
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: leaderboard
+
+  ConnectionStringFormatter:
+    Type: Custom::ConnectionStringFormatter
+    Properties:
+      ServiceToken: !GetAtt ConnectionStringFormatterLambda.Arn
+      SourceSecretArn:
+        Fn::ImportValue: !Sub "${SharedStackName}-DBSecretArn"
+      DatabaseName:
+        Fn::ImportValue: !Sub "${SharedStackName}-DBName"
+      DatabaseHost:
+        Fn::ImportValue: !Sub "${SharedStackName}-DBClusterEndpoint"
+      SecretNamePrefix: stickerlandia/leaderboard
+      Version: "1"
+
+  #############################################################################
+  # Database Initialization - Create leaderboard_scores table
+  # Uses Custom Resource Lambda (same pattern as sticker-catalogue)
+  #############################################################################
+
+  DatabaseInitLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/stickerlandia-leaderboard-db-init
+      RetentionInDays: 7
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: leaderboard
+
+  DatabaseInitRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: stickerlandia-leaderboard-db-init-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: SecretsAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - Fn::ImportValue: !Sub "${SharedStackName}-DBSecretArn"
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !GetAtt DatabaseInitLogGroup.Arn
+                  - !Sub "${DatabaseInitLogGroup.Arn}:*"
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: leaderboard
+
+  DatabaseInitLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: stickerlandia-leaderboard-db-init
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt DatabaseInitRole.Arn
+      Architectures:
+        - arm64
+      Layers:
+        - !Ref TeamLambdaLayerArn
+      Timeout: 60
+      MemorySize: 256
+      Environment:
+        Variables:
+          DB_HOST:
+            Fn::ImportValue: !Sub "${SharedStackName}-DBClusterEndpoint"
+          DB_PORT:
+            Fn::ImportValue: !Sub "${SharedStackName}-DBClusterPort"
+          DB_SECRET_ARN:
+            Fn::ImportValue: !Sub "${SharedStackName}-DBSecretArn"
+      VpcConfig:
+        SecurityGroupIds:
+          - Fn::ImportValue: !Sub "${SharedStackName}-SharedSecurityGroupId"
+        SubnetIds:
+          - Fn::ImportValue: !Sub "${SharedStackName}-PrivateSubnet1Id"
+          - Fn::ImportValue: !Sub "${SharedStackName}-PrivateSubnet2Id"
+      Code:
+        ZipFile: |
+          import json
+          import os
+          import urllib.request
+          import psycopg2
+          import boto3
+
+          def send_response(event, context, status, data=None, reason=None):
+              body = json.dumps({
+                  'Status': status,
+                  'Reason': reason or f'See CloudWatch Log Stream: {context.log_stream_name}',
+                  'PhysicalResourceId': event.get('PhysicalResourceId', 'stickerlandia-leaderboard-db-init'),
+                  'StackId': event['StackId'],
+                  'RequestId': event['RequestId'],
+                  'LogicalResourceId': event['LogicalResourceId'],
+                  'Data': data or {}
+              })
+              req = urllib.request.Request(event['ResponseURL'], data=body.encode(), method='PUT')
+              req.add_header('Content-Type', '')
+              urllib.request.urlopen(req)
+
+          def handler(event, context):
+              print(f"Event: {json.dumps(event)}")
+              try:
+                  if event['RequestType'] == 'Delete':
+                      send_response(event, context, 'SUCCESS')
+                      return
+
+                  # Get database credentials
+                  sm = boto3.client('secretsmanager')
+                  secret = json.loads(sm.get_secret_value(SecretId=os.environ['DB_SECRET_ARN'])['SecretString'])
+
+                  # Connect to the stickerlandia database (already exists from shared stack)
+                  conn = psycopg2.connect(
+                      host=os.environ['DB_HOST'],
+                      port=int(os.environ['DB_PORT']),
+                      database='stickerlandia',
+                      user=secret['username'],
+                      password=secret['password'],
+                      sslmode='require'
+                  )
+                  conn.autocommit = True
+                  cur = conn.cursor()
+
+                  # Create leaderboard_scores table
+                  cur.execute("""
+                      CREATE TABLE IF NOT EXISTS leaderboard_scores (
+                          user_id VARCHAR(255) PRIMARY KEY,
+                          display_name VARCHAR(255) NOT NULL DEFAULT '',
+                          sticker_count INTEGER NOT NULL DEFAULT 0,
+                          last_updated TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                      )
+                  """)
+                  cur.execute("CREATE INDEX IF NOT EXISTS idx_leaderboard_sticker_count ON leaderboard_scores (sticker_count DESC)")
+                  cur.execute("CREATE INDEX IF NOT EXISTS idx_leaderboard_display_name ON leaderboard_scores (display_name)")
+                  print("Leaderboard table and indexes created/verified successfully")
+
+                  # Seed demo leaderboard data
+                  cur.execute("""
+                      INSERT INTO leaderboard_scores (user_id, display_name, sticker_count, last_updated)
+                      VALUES
+                          ('seed-user-001', 'Sparkle Unicorn', 3, NOW()),
+                          ('seed-user-002', 'Cosmic Corgi', 2, NOW()),
+                          ('seed-user-003', 'Rainbow Pupper', 3, NOW()),
+                          ('seed-user-004', 'Glitter Waggins', 1, NOW()),
+                          ('seed-user-005', 'Enchanted Barkley', 2, NOW()),
+                          ('seed-user-006', 'Mystical Pawsworth', 1, NOW()),
+                          ('seed-user-007', 'Starlight Fetchley', 3, NOW()),
+                          ('seed-user-008', 'Prismatic Noodle', 1, NOW())
+                      ON CONFLICT (user_id) DO NOTHING
+                  """)
+                  print("Seed leaderboard data inserted")
+
+                  cur.close()
+                  conn.close()
+
+                  send_response(event, context, 'SUCCESS', {'TableName': 'leaderboard_scores'})
+              except Exception as e:
+                  print(f"Error: {e}")
+                  send_response(event, context, 'FAILED', reason=str(e))
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: leaderboard
+
+  DatabaseInit:
+    Type: Custom::DatabaseInit
+    DependsOn: ConnectionStringFormatter
+    Properties:
+      ServiceToken: !GetAtt DatabaseInitLambda.Arn
+      # Increment to force re-execution if needed
+      Version: "2"
+
+  #############################################################################
+  # ECS Cluster
+  #############################################################################
+
+  LeaderboardCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: stickerlandia-leaderboard
+      CapacityProviders:
+        - FARGATE
+        - FARGATE_SPOT
+      DefaultCapacityProviderStrategy:
+        - CapacityProvider: FARGATE
+          Weight: 1
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: leaderboard
+
+  #############################################################################
+  # CloudWatch Log Groups
+  #############################################################################
+
+  LeaderboardLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/stickerlandia-leaderboard
+      RetentionInDays: 30
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: leaderboard
+
+  DatadogAgentLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/stickerlandia-leaderboard-datadog
+      RetentionInDays: 7
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: leaderboard
+
+  #############################################################################
+  # IAM Roles - ECS Task Execution Role
+  #############################################################################
+
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: stickerlandia-leaderboard-exec-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: SecretsAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stickerlandia/leaderboard/*"
+        - PolicyName: DatadogApiKeyAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:datadog/api-key*"
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: leaderboard
+
+  #############################################################################
+  # IAM Roles - ECS Task Role
+  #############################################################################
+
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: stickerlandia-leaderboard-task-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: SQSAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Resource:
+                  - !GetAtt LeaderboardStickerAssignedQueue.Arn
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource:
+                  - !GetAtt LeaderboardStickerAssignedDLQ.Arn
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: leaderboard
+
+  #############################################################################
+  # ECS Task Definition - Leaderboard Service
+  #############################################################################
+
+  LeaderboardTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: stickerlandia-leaderboard
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      RuntimePlatform:
+        CpuArchitecture: X86_64
+        OperatingSystemFamily: LINUX
+      ContainerDefinitions:
+        - Name: leaderboard
+          Image: !Ref ContainerImage
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8080
+              Protocol: tcp
+          Environment:
+            - Name: SQS_QUEUE_URL
+              Value: !Ref LeaderboardStickerAssignedQueue
+            # Datadog APM environment variables
+            - Name: DD_ENV
+              Value: production
+            - Name: DD_SERVICE
+              Value: leaderboard
+            - Name: DD_VERSION
+              Value: "2.0.0"
+            - Name: DD_GIT_COMMIT_SHA
+              Value: 92db868deb4625ef2a275e99a14bd08bfb8bc135
+            - Name: DD_GIT_REPOSITORY_URL
+              Value: https://github.com/DataDog/gameday-demo-app-services
+            - Name: DD_AGENT_HOST
+              Value: 127.0.0.1
+            - Name: DD_TRACE_ENABLED
+              Value: "true"
+            - Name: DD_LOGS_INJECTION
+              Value: "true"
+            - Name: DD_RUNTIME_METRICS_ENABLED
+              Value: "true"
+            - Name: DD_PROFILING_ENABLED
+              Value: "true"
+            - Name: DD_IAST_ENABLED
+              Value: "true"
+            - Name: ECS_ENABLE_CONTAINER_METADATA
+              Value: "true"
+          Secrets:
+            - Name: DATABASE_URL
+              ValueFrom: !GetAtt ConnectionStringFormatter.ConnectionStringArn
+          HealthCheck:
+            Command:
+              - CMD-SHELL
+              - curl -f http://localhost:8080/health || exit 1
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 60
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref LeaderboardLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: leaderboard
+        # Datadog Agent Sidecar Container
+        - Name: datadog-agent
+          Image: public.ecr.aws/datadog/agent:latest
+          Essential: false
+          PortMappings:
+            - ContainerPort: 8126
+              Protocol: tcp
+            - ContainerPort: 8125
+              Protocol: udp
+          Environment:
+            - Name: DD_APM_ENABLED
+              Value: "true"
+            - Name: DD_APM_NON_LOCAL_TRAFFIC
+              Value: "true"
+            - Name: ECS_FARGATE
+              Value: "true"
+            - Name: DD_SITE
+              Value: datadoghq.com
+            - Name: DD_ENV
+              Value: production
+            - Name: DD_SERVICE
+              Value: leaderboard
+            - Name: DD_VERSION
+              Value: "2.0.0"
+            - Name: DD_LOG_LEVEL
+              Value: ERROR
+          Secrets:
+            - Name: DD_API_KEY
+              ValueFrom: !Ref DatadogApiKeySecretArn
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref DatadogAgentLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: datadog
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: leaderboard
+
+  #############################################################################
+  # Service Discovery
+  #############################################################################
+
+  ServiceDiscoveryService:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: leaderboard.api
+      NamespaceId:
+        Fn::ImportValue: !Sub "${SharedStackName}-ServiceDiscoveryNamespaceId"
+      DnsConfig:
+        DnsRecords:
+          - Type: SRV
+            TTL: 60
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: leaderboard
+
+  #############################################################################
+  # ECS Service
+  #############################################################################
+
+  LeaderboardService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - LeaderboardApiIntegration
+    Properties:
+      ServiceName: stickerlandia-leaderboard
+      Cluster: !Ref LeaderboardCluster
+      TaskDefinition: !Ref LeaderboardTaskDefinition
+      DesiredCount: 1
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 1
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - Fn::ImportValue: !Sub "${SharedStackName}-PrivateSubnet1Id"
+            - Fn::ImportValue: !Sub "${SharedStackName}-PrivateSubnet2Id"
+          SecurityGroups:
+            - Fn::ImportValue: !Sub "${SharedStackName}-SharedSecurityGroupId"
+          AssignPublicIp: DISABLED
+      ServiceRegistries:
+        - RegistryArn: !GetAtt ServiceDiscoveryService.Arn
+          ContainerName: leaderboard
+          ContainerPort: 8080
+      EnableECSManagedTags: true
+      PropagateTags: SERVICE
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: leaderboard
+
+  #############################################################################
+  # API Gateway Integration
+  #############################################################################
+
+  LeaderboardApiIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    DependsOn: ServiceDiscoveryService
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub "${SharedStackName}-HttpApiId"
+      IntegrationType: HTTP_PROXY
+      IntegrationUri: !GetAtt ServiceDiscoveryService.Arn
+      IntegrationMethod: ANY
+      ConnectionType: VPC_LINK
+      ConnectionId:
+        Fn::ImportValue: !Sub "${SharedStackName}-VpcLinkId"
+      PayloadFormatVersion: "1.0"
+
+  LeaderboardApiRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub "${SharedStackName}-HttpApiId"
+      RouteKey: "ANY /api/leaderboard/{proxy+}"
+      Target: !Sub "integrations/${LeaderboardApiIntegration}"
+
+#############################################################################
+# Outputs
+#############################################################################
+
+Outputs:
+  LeaderboardClusterArn:
+    Description: Leaderboard ECS Cluster ARN
+    Value: !GetAtt LeaderboardCluster.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-ClusterArn"
+
+  LeaderboardClusterName:
+    Description: Leaderboard ECS Cluster Name
+    Value: !Ref LeaderboardCluster
+    Export:
+      Name: !Sub "${AWS::StackName}-ClusterName"
+
+  LeaderboardStickerAssignedQueueUrl:
+    Description: SQS Queue URL for sticker assigned events
+    Value: !Ref LeaderboardStickerAssignedQueue
+    Export:
+      Name: !Sub "${AWS::StackName}-StickerAssignedQueueUrl"
+
+  LeaderboardStickerAssignedQueueArn:
+    Description: SQS Queue ARN for sticker assigned events
+    Value: !GetAtt LeaderboardStickerAssignedQueue.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-StickerAssignedQueueArn"
+
+  ServiceDiscoveryServiceArn:
+    Description: Service Discovery Service ARN
+    Value: !GetAtt ServiceDiscoveryService.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-ServiceDiscoveryServiceArn"

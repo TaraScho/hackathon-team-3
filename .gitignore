@@ -1,0 +1,23 @@
+# Secrets
+.env
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Generated outputs (recreated by skills on each run)
+datadog-resources/
+**/repo-analysis.json
+**/datadog-recommendations.md
+
+# OS
+.DS_Store
+**/.DS_Store
+
+# Terraform
+*.tfstate
+*.tfstate.backup
+*.tfvars
+.terraform/
+.terraform.lock.hcl

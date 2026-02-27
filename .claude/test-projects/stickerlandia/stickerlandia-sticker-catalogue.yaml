@@ -1,0 +1,1043 @@
+# Copyright 2026 Amazon.com and its affiliates; all rights reserved.
+# This file is Amazon Web Services Content and may not be duplicated or distributed without permission.
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Stickerlandia Sticker Catalogue Service - ECS Fargate, S3, EventBridge, API Gateway Routes
+
+Parameters:
+  SharedStackName:
+    Type: String
+    Description: Name of the shared infrastructure stack (Stack 1) for importing outputs
+
+  TeamLambdaSourceBucket:
+    Type: String
+    Description: S3 bucket containing Lambda source code
+
+  TeamLambdaSourceKey:
+    Type: String
+    Description: S3 key prefix for Lambda source code
+
+  DatadogApiKeySecretArn:
+    Type: String
+    Description: Full ARN of the datadog/api-key secret (looked up by parent stack)
+
+  TeamLambdaLayerArn:
+    Type: String
+    Description: ARN of the team Lambda layer containing psycopg2 and other dependencies
+
+  ContainerImage:
+    Type: String
+    Description: ECR image URI for the sticker-catalogue container
+
+Resources:
+  #############################################################################
+  # Database Initialization - Create separate database for sticker-catalogue
+  # This avoids Flyway conflicts with user-service's Entity Framework migrations
+  #############################################################################
+
+  DatabaseInitLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/stickerlandia-catalogue-db-init
+      RetentionInDays: 7
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: sticker-catalogue
+
+  DatabaseInitRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub stickerlandia-catalogue-db-init-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: SecretsAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - Fn::ImportValue: !Sub "${SharedStackName}-DBSecretArn"
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !GetAtt DatabaseInitLogGroup.Arn
+                  - !Sub "${DatabaseInitLogGroup.Arn}:*"
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: sticker-catalogue
+
+  DatabaseInitLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub stickerlandia-catalogue-db-init
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt DatabaseInitRole.Arn
+      Architectures:
+        - arm64
+      Layers:
+        - !Ref TeamLambdaLayerArn
+      Timeout: 60
+      MemorySize: 256
+      Environment:
+        Variables:
+          DB_HOST:
+            Fn::ImportValue: !Sub "${SharedStackName}-DBClusterEndpoint"
+          DB_PORT:
+            Fn::ImportValue: !Sub "${SharedStackName}-DBClusterPort"
+          DB_SECRET_ARN:
+            Fn::ImportValue: !Sub "${SharedStackName}-DBSecretArn"
+          TARGET_DB_NAME: stickerlandia_catalogue
+      VpcConfig:
+        SecurityGroupIds:
+          - Fn::ImportValue: !Sub "${SharedStackName}-SharedSecurityGroupId"
+        SubnetIds:
+          - Fn::ImportValue: !Sub "${SharedStackName}-PrivateSubnet1Id"
+          - Fn::ImportValue: !Sub "${SharedStackName}-PrivateSubnet2Id"
+      Code:
+        ZipFile: |
+          import json
+          import os
+          import urllib.request
+          import psycopg2
+          import boto3
+
+          def send_response(event, context, status, data=None, reason=None):
+              body = json.dumps({
+                  'Status': status,
+                  'Reason': reason or f'See CloudWatch Log Stream: {context.log_stream_name}',
+                  'PhysicalResourceId': event.get('PhysicalResourceId', 'stickerlandia-catalogue-db-init'),
+                  'StackId': event['StackId'],
+                  'RequestId': event['RequestId'],
+                  'LogicalResourceId': event['LogicalResourceId'],
+                  'Data': data or {}
+              })
+              req = urllib.request.Request(event['ResponseURL'], data=body.encode(), method='PUT')
+              req.add_header('Content-Type', '')
+              urllib.request.urlopen(req)
+
+          def handler(event, context):
+              print(f"Event: {json.dumps(event)}")
+              try:
+                  if event['RequestType'] == 'Delete':
+                      send_response(event, context, 'SUCCESS')
+                      return
+
+                  # Get database credentials
+                  sm = boto3.client('secretsmanager')
+                  secret = json.loads(sm.get_secret_value(SecretId=os.environ['DB_SECRET_ARN'])['SecretString'])
+
+                  target_db = os.environ['TARGET_DB_NAME']
+
+                  # Connect to postgres admin database to create the new database
+                  conn = psycopg2.connect(
+                      host=os.environ['DB_HOST'],
+                      port=int(os.environ['DB_PORT']),
+                      database='postgres',
+                      user=secret['username'],
+                      password=secret['password'],
+                      sslmode='require'
+                  )
+                  conn.autocommit = True
+                  cur = conn.cursor()
+
+                  # Check if database exists
+                  cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (target_db,))
+                  if not cur.fetchone():
+                      cur.execute(f'CREATE DATABASE "{target_db}"')
+                      print(f"Created database: {target_db}")
+                  else:
+                      print(f"Database already exists: {target_db}")
+
+                  cur.close()
+                  conn.close()
+
+                  send_response(event, context, 'SUCCESS', {'DatabaseName': target_db})
+              except Exception as e:
+                  print(f"Error: {e}")
+                  send_response(event, context, 'FAILED', reason=str(e))
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: sticker-catalogue
+
+  DatabaseInit:
+    Type: Custom::DatabaseInit
+    Properties:
+      ServiceToken: !GetAtt DatabaseInitLambda.Arn
+      # Increment to force re-execution if needed
+      Version: "1"
+
+  #############################################################################
+  # S3 Bucket - Sticker Images
+  #############################################################################
+
+  StickerImagesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub sticker-images-${AWS::AccountId}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: sticker-catalogue
+
+  #############################################################################
+  # Connection String Formatter - Custom Resource (INDIVIDUAL_FIELDS)
+  # Creates 3 separate secrets for JDBC: URL, username, password
+  #############################################################################
+
+  ConnectionStringFormatterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+        - PolicyName: ReadSourceSecret
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  Fn::ImportValue: !Sub "${SharedStackName}-DBSecretArn"
+        - PolicyName: ManageConnectionStringSecrets
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:CreateSecret
+                  - secretsmanager:UpdateSecret
+                  - secretsmanager:DeleteSecret
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stickerlandia/catalogue/*"
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: sticker-catalogue
+
+  ConnectionStringFormatterLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub stickerlandia-catalogue-conn-string-formatter
+      Runtime: nodejs20.x
+      Handler: index.handler
+      Timeout: 30
+      Role: !GetAtt ConnectionStringFormatterRole.Arn
+      Code:
+        ZipFile: |
+          const https = require("https");
+          const url = require("url");
+          const { SecretsManagerClient, GetSecretValueCommand, CreateSecretCommand, UpdateSecretCommand, DeleteSecretCommand } = require("@aws-sdk/client-secrets-manager");
+
+          async function sendResponse(event, context, status, data, physicalResourceId, reason) {
+            const responseBody = JSON.stringify({
+              Status: status,
+              Reason: reason || `See CloudWatch Log Stream: ${context.logStreamName}`,
+              PhysicalResourceId: physicalResourceId || context.logStreamName,
+              StackId: event.StackId,
+              RequestId: event.RequestId,
+              LogicalResourceId: event.LogicalResourceId,
+              Data: data || {}
+            });
+
+            console.log("Response body:", responseBody);
+
+            const parsedUrl = url.parse(event.ResponseURL);
+            const options = {
+              hostname: parsedUrl.hostname,
+              port: 443,
+              path: parsedUrl.path,
+              method: "PUT",
+              headers: {
+                "content-type": "",
+                "content-length": responseBody.length
+              }
+            };
+
+            return new Promise((resolve, reject) => {
+              const req = https.request(options, (res) => {
+                console.log(`CFN response status: ${res.statusCode}`);
+                resolve();
+              });
+              req.on("error", (err) => {
+                console.error("CFN response error:", err);
+                reject(err);
+              });
+              req.write(responseBody);
+              req.end();
+            });
+          }
+
+          async function createOrUpdateSecret(client, secretName, secretValue, description) {
+            let arn;
+            try {
+              const result = await client.send(new UpdateSecretCommand({
+                SecretId: secretName,
+                SecretString: secretValue,
+                Description: description,
+              }));
+              arn = result.ARN;
+              console.log(`Updated secret: ${secretName}, ARN: ${arn}`);
+            } catch (e) {
+              if (e.name === "ResourceNotFoundException") {
+                const result = await client.send(new CreateSecretCommand({
+                  Name: secretName,
+                  SecretString: secretValue,
+                  Description: description,
+                }));
+                arn = result.ARN;
+                console.log(`Created secret: ${secretName}, ARN: ${arn}`);
+              } else {
+                throw e;
+              }
+            }
+            return arn;
+          }
+
+          exports.handler = async (event, context) => {
+            console.log("Event:", JSON.stringify(event, null, 2));
+
+            const sourceSecretArn = event.ResourceProperties.SourceSecretArn;
+            const databaseName = event.ResourceProperties.DatabaseName;
+            const secretNamePrefix = event.ResourceProperties.SecretNamePrefix;
+            const dbHost = event.ResourceProperties.DatabaseHost;
+            const physicalResourceId = event.PhysicalResourceId || `${secretNamePrefix}-db-creds`;
+
+            const smClient = new SecretsManagerClient({});
+
+            try {
+              if (event.RequestType === "Delete") {
+                const secretsToDelete = [
+                  `${secretNamePrefix}/database-host`,
+                  `${secretNamePrefix}/database-user`,
+                  `${secretNamePrefix}/database-password`
+                ];
+
+                for (const secretName of secretsToDelete) {
+                  try {
+                    await smClient.send(new DeleteSecretCommand({
+                      SecretId: secretName,
+                      ForceDeleteWithoutRecovery: true
+                    }));
+                    console.log(`Deleted secret: ${secretName}`);
+                  } catch (e) {
+                    if (e.name !== "ResourceNotFoundException") {
+                      console.warn(`Failed to delete secret ${secretName}:`, e);
+                    }
+                  }
+                }
+                await sendResponse(event, context, "SUCCESS", {}, physicalResourceId);
+                return;
+              }
+
+              // Get the source RDS secret value
+              const secretResponse = await smClient.send(new GetSecretValueCommand({ SecretId: sourceSecretArn }));
+              const secret = JSON.parse(secretResponse.SecretString);
+
+              const host = dbHost || secret.host;
+              const port = secret.port || 5432;
+              const username = secret.username;
+              const password = secret.password;
+
+              // Validate required fields
+              if (!host || !username || password === undefined || password === null) {
+                throw new Error(`Missing required fields in RDS secret. host=${!!host}, username=${!!username}, password=${password !== undefined && password !== null}`);
+              }
+
+              // Create JDBC URL (note: secret name is "database-host" but contains JDBC URL)
+              const jdbcUrl = `jdbc:postgresql://${host}:${port}/${databaseName}`;
+
+              // Create 3 separate secrets for Quarkus
+              const jdbcUrlArn = await createOrUpdateSecret(
+                smClient,
+                `${secretNamePrefix}/database-host`,
+                jdbcUrl,
+                `JDBC URL for ${databaseName} (auto-generated)`
+              );
+
+              const usernameArn = await createOrUpdateSecret(
+                smClient,
+                `${secretNamePrefix}/database-user`,
+                username,
+                `Database username for ${databaseName} (auto-generated)`
+              );
+
+              const passwordArn = await createOrUpdateSecret(
+                smClient,
+                `${secretNamePrefix}/database-password`,
+                password,
+                `Database password for ${databaseName} (auto-generated)`
+              );
+
+              await sendResponse(event, context, "SUCCESS", {
+                JdbcUrlArn: jdbcUrlArn,
+                UsernameArn: usernameArn,
+                PasswordArn: passwordArn,
+                SecretNamePrefix: secretNamePrefix
+              }, physicalResourceId);
+
+            } catch (err) {
+              console.error("Error:", err);
+              await sendResponse(event, context, "FAILED", {}, physicalResourceId, err.message);
+            }
+          };
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: sticker-catalogue
+
+  ConnectionStringFormatter:
+    Type: Custom::ConnectionStringFormatter
+    DependsOn: DatabaseInit
+    Properties:
+      ServiceToken: !GetAtt ConnectionStringFormatterLambda.Arn
+      SourceSecretArn:
+        Fn::ImportValue: !Sub "${SharedStackName}-DBSecretArn"
+      # Use dedicated database for sticker-catalogue to avoid Flyway conflicts with user-service
+      DatabaseName: stickerlandia_catalogue
+      DatabaseHost:
+        Fn::ImportValue: !Sub "${SharedStackName}-DBClusterEndpoint"
+      SecretNamePrefix: !Sub "stickerlandia/catalogue"
+      # Increment to force custom resource re-execution when Lambda code changes
+      Version: "2"
+
+  # #############################################################################
+  # # Flyway Schema Cleanup - ONE-TIME FIX (can be removed after first successful deploy)
+  # # Drops flyway_schema_history table so Flyway re-runs with correct baseline
+  # #############################################################################
+
+  # FlywayCleanupLogGroup:
+  #   Type: AWS::Logs::LogGroup
+  #   Properties:
+  #     LogGroupName: !Sub /aws/lambda/stickerlandia-flyway-cleanup
+  #     RetentionInDays: 7
+  #     Tags:
+  #       - Key: App
+  #         Value: stickerlandia
+  #       - Key: Environment
+  #         Value: production
+  #       - Key: Service
+  #         Value: sticker-catalogue
+
+  # FlywayCleanupRole:
+  #   Type: AWS::IAM::Role
+  #   Properties:
+  #     RoleName: !Sub stickerlandia-flyway-cleanup-role
+  #     AssumeRolePolicyDocument:
+  #       Version: "2012-10-17"
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Service: lambda.amazonaws.com
+  #           Action: sts:AssumeRole
+  #     ManagedPolicyArns:
+  #       - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+  #     Policies:
+  #       - PolicyName: SecretsAccess
+  #         PolicyDocument:
+  #           Version: "2012-10-17"
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - secretsmanager:GetSecretValue
+  #               Resource:
+  #                 - Fn::ImportValue: !Sub "${SharedStackName}-DBSecretArn"
+  #       - PolicyName: CloudWatchLogs
+  #         PolicyDocument:
+  #           Version: "2012-10-17"
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - logs:CreateLogStream
+  #                 - logs:PutLogEvents
+  #               Resource:
+  #                 - !GetAtt FlywayCleanupLogGroup.Arn
+  #                 - !Sub "${FlywayCleanupLogGroup.Arn}:*"
+  #     Tags:
+  #       - Key: App
+  #         Value: stickerlandia
+  #       - Key: Environment
+  #         Value: production
+  #       - Key: Service
+  #         Value: sticker-catalogue
+
+  # FlywayCleanupFunction:
+  #   Type: AWS::Lambda::Function
+  #   Properties:
+  #     FunctionName: !Sub stickerlandia-flyway-cleanup
+  #     Runtime: python3.12
+  #     Handler: index.handler
+  #     Role: !GetAtt FlywayCleanupRole.Arn
+  #     Architectures:
+  #       - arm64
+  #     Layers:
+  #       - !Ref TeamLambdaLayerArn
+  #     Timeout: 60
+  #     MemorySize: 256
+  #     Environment:
+  #       Variables:
+  #         DB_HOST:
+  #           Fn::ImportValue: !Sub "${SharedStackName}-DBClusterEndpoint"
+  #         DB_PORT:
+  #           Fn::ImportValue: !Sub "${SharedStackName}-DBClusterPort"
+  #         DB_NAME:
+  #           Fn::ImportValue: !Sub "${SharedStackName}-DBName"
+  #         DB_SECRET_ARN:
+  #           Fn::ImportValue: !Sub "${SharedStackName}-DBSecretArn"
+  #     VpcConfig:
+  #       SecurityGroupIds:
+  #         - Fn::ImportValue: !Sub "${SharedStackName}-SharedSecurityGroupId"
+  #       SubnetIds:
+  #         - Fn::ImportValue: !Sub "${SharedStackName}-PrivateSubnet1Id"
+  #         - Fn::ImportValue: !Sub "${SharedStackName}-PrivateSubnet2Id"
+  #     Code:
+  #       ZipFile: |
+  #         import json
+  #         import os
+  #         import urllib.request
+  #         import psycopg2
+  #         import boto3
+
+  #         def send_response(event, context, status, data=None, reason=None):
+  #             body = json.dumps({
+  #                 'Status': status,
+  #                 'Reason': reason or f'See CloudWatch Log Stream: {context.log_stream_name}',
+  #                 'PhysicalResourceId': context.log_stream_name,
+  #                 'StackId': event['StackId'],
+  #                 'RequestId': event['RequestId'],
+  #                 'LogicalResourceId': event['LogicalResourceId'],
+  #                 'Data': data or {}
+  #             })
+  #             req = urllib.request.Request(event['ResponseURL'], data=body.encode(), method='PUT')
+  #             req.add_header('Content-Type', '')
+  #             urllib.request.urlopen(req)
+
+  #         def handler(event, context):
+  #             print(f"Event: {json.dumps(event)}")
+  #             try:
+  #                 if event['RequestType'] == 'Delete':
+  #                     send_response(event, context, 'SUCCESS')
+  #                     return
+
+  #                 # Get database credentials
+  #                 sm = boto3.client('secretsmanager')
+  #                 secret = json.loads(sm.get_secret_value(SecretId=os.environ['DB_SECRET_ARN'])['SecretString'])
+
+  #                 # Connect to database
+  #                 conn = psycopg2.connect(
+  #                     host=os.environ['DB_HOST'],
+  #                     port=int(os.environ['DB_PORT']),
+  #                     database=os.environ['DB_NAME'],
+  #                     user=secret['username'],
+  #                     password=secret['password'],
+  #                     sslmode='require'
+  #                 )
+  #                 conn.autocommit = True
+  #                 cur = conn.cursor()
+
+  #                 # Drop flyway_schema_history if it exists (one-time cleanup)
+  #                 cur.execute("DROP TABLE IF EXISTS flyway_schema_history CASCADE")
+  #                 print("Dropped flyway_schema_history table (if it existed)")
+
+  #                 cur.close()
+  #                 conn.close()
+
+  #                 send_response(event, context, 'SUCCESS', {'Message': 'Flyway schema history cleared'})
+  #             except Exception as e:
+  #                 print(f"Error: {e}")
+  #                 send_response(event, context, 'FAILED', reason=str(e))
+  #     Tags:
+  #       - Key: App
+  #         Value: stickerlandia
+  #       - Key: Environment
+  #         Value: production
+  #       - Key: Service
+  #         Value: sticker-catalogue
+
+  # FlywayCleanup:
+  #   Type: Custom::FlywayCleanup
+  #   DependsOn: ConnectionStringFormatter
+  #   Properties:
+  #     ServiceToken: !GetAtt FlywayCleanupFunction.Arn
+  #     # Force re-run by changing this value
+  #     Version: "1"
+
+  #############################################################################
+  # ECS Cluster
+  #############################################################################
+
+  StickerCatalogueCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub stickerlandia-sticker-catalogue
+      CapacityProviders:
+        - FARGATE
+        - FARGATE_SPOT
+      DefaultCapacityProviderStrategy:
+        - CapacityProvider: FARGATE
+          Weight: 1
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: sticker-catalogue
+
+  #############################################################################
+  # CloudWatch Log Groups
+  #############################################################################
+
+  StickerCatalogueLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/stickerlandia-sticker-catalogue
+      RetentionInDays: 30
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: sticker-catalogue
+
+  DatadogAgentLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/stickerlandia-sticker-catalogue-datadog
+      RetentionInDays: 7
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: sticker-catalogue
+
+  #############################################################################
+  # IAM Roles - ECS Task Execution Role
+  #############################################################################
+
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub stickerlandia-sticker-catalogue-exec-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: SecretsAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  # Access to 3 formatted secrets (created by custom resource)
+                  - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stickerlandia/catalogue/*"
+        - PolicyName: DatadogApiKeyAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:datadog/api-key*"
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: sticker-catalogue
+
+  #############################################################################
+  # IAM Roles - ECS Task Role
+  #############################################################################
+
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub stickerlandia-sticker-catalogue-task-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: S3StickerImagesAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt StickerImagesBucket.Arn
+                  - !Sub "${StickerImagesBucket.Arn}/*"
+        - PolicyName: EventBridgePutEvents
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - events:PutEvents
+                Resource:
+                  - Fn::ImportValue: !Sub "${SharedStackName}-EventBusArn"
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: sticker-catalogue
+
+  #############################################################################
+  # ECS Task Definition - Sticker Catalogue Service
+  #############################################################################
+
+  StickerCatalogueTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub stickerlandia-sticker-catalogue
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      RuntimePlatform:
+        CpuArchitecture: X86_64
+        OperatingSystemFamily: LINUX
+      ContainerDefinitions:
+        - Name: sticker-catalogue
+          Image: !Ref ContainerImage
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8080
+              Protocol: tcp
+          Environment:
+            # Application environment
+            - Name: ENV
+              Value: production
+            # OAuth configuration for JWT validation
+            # Note: The IssuerValidationFilter normalizes trailing slashes, so issuer comparison
+            # will work regardless of whether the issuer in the token has a trailing slash or not.
+            # We omit the trailing slash here to avoid double slashes in the JWKS URL.
+            - Name: OAUTH_ISSUER
+              Value:
+                Fn::Sub:
+                  - "https://${CloudFrontDomain}"
+                  - CloudFrontDomain:
+                      Fn::ImportValue: !Sub "${SharedStackName}-CloudFrontDomainName"
+            # Quarkus Database Configuration
+            - Name: QUARKUS_DATASOURCE_DB_KIND
+              Value: postgresql
+            - Name: QUARKUS_DATASOURCE_DEVSERVICES_ENABLED
+              Value: "false"
+            - Name: QUARKUS_DATASOURCE_JDBC_ACQUISITION_TIMEOUT
+              Value: 30S
+            # Flyway baseline version - set to 0 so V1.0.0 migration runs
+            # (default is 1, which skips V1.0.0 when baseline-on-migrate creates a new baseline)
+            - Name: QUARKUS_FLYWAY_BASELINE_VERSION
+              Value: "0"
+            # S3 Configuration
+            - Name: QUARKUS_S3_AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: QUARKUS_S3_PATH_STYLE_ACCESS
+              Value: "true"
+            - Name: STICKER_IMAGES_BUCKET
+              Value: !Ref StickerImagesBucket
+            # EventBridge Messaging (AWS deployment)
+            - Name: MESSAGING_PROVIDER
+              Value: aws
+            - Name: EVENT_BUS_NAME
+              Value:
+                Fn::ImportValue: !Sub "${SharedStackName}-EventBusName"
+            # Datadog APM environment variables
+            - Name: DD_ENV
+              Value: production
+            - Name: DD_SERVICE
+              Value: sticker-catalogue
+            - Name: DD_VERSION
+              Value: "1.0.2"
+            - Name: DD_AGENT_HOST
+              Value: 127.0.0.1
+            - Name: DD_TRACE_ENABLED
+              Value: "true"
+            - Name: DD_TRACE_ROUTE_TEMPLATE_RESOURCE_NAMES_ENABLED
+              Value: "true"
+            - Name: DD_LOGS_INJECTION
+              Value: "true"
+            - Name: DD_RUNTIME_METRICS_ENABLED
+              Value: "true"
+            - Name: DD_PROFILING_ENABLED
+              Value: "true"
+            - Name: DD_IAST_ENABLED
+              Value: "true"
+            - Name: DD_DATA_STREAMS_ENABLED
+              Value: "true"
+            - Name: ECS_ENABLE_CONTAINER_METADATA
+              Value: "true"
+          Secrets:
+            # JDBC connection credentials (3 separate secrets)
+            - Name: QUARKUS_DATASOURCE_JDBC_URL
+              ValueFrom: !GetAtt ConnectionStringFormatter.JdbcUrlArn
+            - Name: QUARKUS_DATASOURCE_USERNAME
+              ValueFrom: !GetAtt ConnectionStringFormatter.UsernameArn
+            - Name: QUARKUS_DATASOURCE_PASSWORD
+              ValueFrom: !GetAtt ConnectionStringFormatter.PasswordArn
+          HealthCheck:
+            Command:
+              - CMD-SHELL
+              - curl -f http://localhost:8080/api/stickers/v1 || exit 1
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 120
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref StickerCatalogueLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: sticker-catalogue
+        # Datadog Agent Sidecar Container
+        - Name: datadog-agent
+          Image: public.ecr.aws/datadog/agent:latest
+          Essential: false
+          PortMappings:
+            - ContainerPort: 8126
+              Protocol: tcp
+            - ContainerPort: 8125
+              Protocol: udp
+          Environment:
+            - Name: DD_APM_ENABLED
+              Value: "true"
+            - Name: DD_APM_NON_LOCAL_TRAFFIC
+              Value: "true"
+            - Name: ECS_FARGATE
+              Value: "true"
+            - Name: DD_SITE
+              Value: datadoghq.com
+            - Name: DD_ENV
+              Value: production
+            - Name: DD_SERVICE
+              Value: sticker-catalogue
+            - Name: DD_VERSION
+              Value: "1.0.2"
+            - Name: DD_LOG_LEVEL
+              Value: ERROR
+          Secrets:
+            - Name: DD_API_KEY
+              ValueFrom: !Ref DatadogApiKeySecretArn
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref DatadogAgentLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: datadog
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: sticker-catalogue
+
+  #############################################################################
+  # Service Discovery
+  #############################################################################
+
+  ServiceDiscoveryService:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: catalogue.api
+      NamespaceId:
+        Fn::ImportValue: !Sub "${SharedStackName}-ServiceDiscoveryNamespaceId"
+      DnsConfig:
+        DnsRecords:
+          - Type: SRV
+            TTL: 60
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: sticker-catalogue
+
+  #############################################################################
+  # ECS Service
+  #############################################################################
+
+  StickerCatalogueService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - StickerCatalogueApiIntegration
+    Properties:
+      ServiceName: !Sub stickerlandia-sticker-catalogue
+      Cluster: !Ref StickerCatalogueCluster
+      TaskDefinition: !Ref StickerCatalogueTaskDefinition
+      DesiredCount: 1
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 1
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - Fn::ImportValue: !Sub "${SharedStackName}-PrivateSubnet1Id"
+            - Fn::ImportValue: !Sub "${SharedStackName}-PrivateSubnet2Id"
+          SecurityGroups:
+            - Fn::ImportValue: !Sub "${SharedStackName}-SharedSecurityGroupId"
+          AssignPublicIp: DISABLED
+      ServiceRegistries:
+        - RegistryArn: !GetAtt ServiceDiscoveryService.Arn
+          ContainerName: sticker-catalogue
+          ContainerPort: 8080
+      EnableECSManagedTags: true
+      PropagateTags: SERVICE
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: sticker-catalogue
+
+  #############################################################################
+  # API Gateway Integration
+  #############################################################################
+
+  StickerCatalogueApiIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    DependsOn: ServiceDiscoveryService
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub "${SharedStackName}-HttpApiId"
+      IntegrationType: HTTP_PROXY
+      IntegrationUri: !GetAtt ServiceDiscoveryService.Arn
+      IntegrationMethod: ANY
+      ConnectionType: VPC_LINK
+      ConnectionId:
+        Fn::ImportValue: !Sub "${SharedStackName}-VpcLinkId"
+      PayloadFormatVersion: "1.0"
+
+  StickersApiRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub "${SharedStackName}-HttpApiId"
+      RouteKey: "ANY /api/stickers/v1/{proxy+}"
+      Target: !Sub "integrations/${StickerCatalogueApiIntegration}"
+
+#############################################################################
+# Outputs
+#############################################################################
+
+Outputs:
+  StickerCatalogueClusterArn:
+    Description: Sticker Catalogue ECS Cluster ARN
+    Value: !GetAtt StickerCatalogueCluster.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-ClusterArn"
+
+  StickerCatalogueClusterName:
+    Description: Sticker Catalogue ECS Cluster Name
+    Value: !Ref StickerCatalogueCluster
+    Export:
+      Name: !Sub "${AWS::StackName}-ClusterName"
+
+  StickerImagesBucketName:
+    Description: S3 Bucket name for sticker images
+    Value: !Ref StickerImagesBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-StickerImagesBucketName"
+
+  StickerImagesBucketArn:
+    Description: S3 Bucket ARN for sticker images
+    Value: !GetAtt StickerImagesBucket.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-StickerImagesBucketArn"
+
+  ServiceDiscoveryServiceArn:
+    Description: Service Discovery Service ARN
+    Value: !GetAtt ServiceDiscoveryService.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-ServiceDiscoveryServiceArn"

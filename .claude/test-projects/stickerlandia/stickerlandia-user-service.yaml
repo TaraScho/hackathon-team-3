@@ -1,0 +1,1503 @@
+# Copyright 2026 Amazon.com and its affiliates; all rights reserved.
+# This file is Amazon Web Services Content and may not be duplicated or distributed without permission.
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Stickerlandia User Service - ECS Fargate, SNS, SQS, Lambda Workers, API Gateway Routes
+
+Parameters:
+  SharedStackName:
+    Type: String
+    Description: Name of the shared infrastructure stack (Stack 1) for importing outputs
+
+  TeamLambdaSourceBucket:
+    Type: String
+    Description: S3 bucket containing Lambda source code
+
+  TeamLambdaSourceKey:
+    Type: String
+    Description: S3 key prefix for Lambda source code
+
+  DatadogApiKeySecretArn:
+    Type: String
+    Description: Full ARN of the datadog/api-key secret (looked up by parent stack)
+
+  TeamLambdaLayerArn:
+    Type: String
+    Description: ARN of the team Lambda layer containing psycopg2 and other dependencies
+
+  ServiceContainerImage:
+    Type: String
+    Description: ECR image URI for the user-management service container
+
+  MigrationContainerImage:
+    Type: String
+    Description: ECR image URI for the user-management migration container
+
+Resources:
+  #############################################################################
+  # SNS Topic - User Registered Events
+  #############################################################################
+
+  UserRegisteredTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub user-service-user-registered
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: user-service
+
+  #############################################################################
+  # SQS Queues - Sticker Claimed Events
+  #############################################################################
+
+  StickerClaimedDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub user-service-sticker-claimed-dlq
+      MessageRetentionPeriod: 1209600  # 14 days
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: user-service
+
+  StickerClaimedQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub user-service-sticker-claimed
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt StickerClaimedDLQ.Arn
+        maxReceiveCount: 5
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: user-service
+
+  # Allow EventBridge to send messages to the queue
+  # Note: We construct the EventRule ARN manually to avoid circular dependency
+  # (QueuePolicy depends on EventRule ARN, EventRule depends on Queue ARN)
+  StickerClaimedQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref StickerClaimedQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowEventBridgeToSendMessage
+            Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt StickerClaimedQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !Sub
+                  - "arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/${EventBusName}/user-service-sticker-claimed-rule"
+                  - EventBusName:
+                      Fn::ImportValue: !Sub "${SharedStackName}-EventBusName"
+
+  #############################################################################
+  # EventBridge Rule - Route Sticker Claimed Events to SQS
+  #############################################################################
+
+  StickerClaimedEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub user-service-sticker-claimed-rule
+      Description: Route sticker claimed events to user service SQS queue
+      EventBusName:
+        Fn::ImportValue: !Sub "${SharedStackName}-EventBusName"
+      EventPattern:
+        source:
+          - !Sub "stickerlandia.stickers"
+        detail-type:
+          - "users.stickerClaimed.v1"
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt StickerClaimedQueue.Arn
+          Id: StickerClaimedTarget
+      # Note: AWS::Events::Rule does NOT support Tags in CloudFormation
+
+  #############################################################################
+  # Connection String Formatter - Custom Resource
+  # Creates a formatted connection string secret from Aurora credentials
+  # Matches CDK DatabaseCredentials construct pattern
+  #############################################################################
+
+  ConnectionStringFormatterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+        - PolicyName: ReadSourceSecret
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  Fn::ImportValue: !Sub "${SharedStackName}-DBSecretArn"
+        - PolicyName: ManageConnectionStringSecret
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:CreateSecret
+                  - secretsmanager:UpdateSecret
+                  - secretsmanager:DeleteSecret
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stickerlandia/users/*"
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: user-service
+
+  ConnectionStringFormatterLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub stickerlandia-connection-string-formatter
+      Runtime: nodejs20.x
+      Handler: index.handler
+      Timeout: 30
+      Role: !GetAtt ConnectionStringFormatterRole.Arn
+      Code:
+        ZipFile: |
+          const https = require("https");
+          const url = require("url");
+          const { SecretsManagerClient, GetSecretValueCommand, CreateSecretCommand, UpdateSecretCommand, DeleteSecretCommand } = require("@aws-sdk/client-secrets-manager");
+
+          async function sendResponse(event, context, status, data, physicalResourceId, reason) {
+            const responseBody = JSON.stringify({
+              Status: status,
+              Reason: reason || `See CloudWatch Log Stream: ${context.logStreamName}`,
+              PhysicalResourceId: physicalResourceId || context.logStreamName,
+              StackId: event.StackId,
+              RequestId: event.RequestId,
+              LogicalResourceId: event.LogicalResourceId,
+              Data: data || {}
+            });
+
+            console.log("Response body:", responseBody);
+
+            const parsedUrl = url.parse(event.ResponseURL);
+            const options = {
+              hostname: parsedUrl.hostname,
+              port: 443,
+              path: parsedUrl.path,
+              method: "PUT",
+              headers: {
+                "content-type": "",
+                "content-length": responseBody.length
+              }
+            };
+
+            return new Promise((resolve, reject) => {
+              const req = https.request(options, (res) => {
+                console.log(`CFN response status: ${res.statusCode}`);
+                resolve();
+              });
+              req.on("error", (err) => {
+                console.error("CFN response error:", err);
+                reject(err);
+              });
+              req.write(responseBody);
+              req.end();
+            });
+          }
+
+          async function createOrUpdateSecret(client, secretName, secretValue, description) {
+            let arn;
+            try {
+              const result = await client.send(new UpdateSecretCommand({
+                SecretId: secretName,
+                SecretString: secretValue,
+                Description: description,
+              }));
+              arn = result.ARN;
+              console.log(`Updated secret: ${secretName}, ARN: ${arn}`);
+            } catch (e) {
+              if (e.name === "ResourceNotFoundException") {
+                const result = await client.send(new CreateSecretCommand({
+                  Name: secretName,
+                  SecretString: secretValue,
+                  Description: description,
+                }));
+                arn = result.ARN;
+                console.log(`Created secret: ${secretName}, ARN: ${arn}`);
+              } else {
+                throw e;
+              }
+            }
+            return arn;
+          }
+
+          exports.handler = async (event, context) => {
+            console.log("Event:", JSON.stringify(event, null, 2));
+
+            const sourceSecretArn = event.ResourceProperties.SourceSecretArn;
+            const databaseName = event.ResourceProperties.DatabaseName;
+            const secretNamePrefix = event.ResourceProperties.SecretNamePrefix;
+            // Host passed explicitly since Aurora ManageMasterUserPassword doesn't include it in secret
+            const dbHost = event.ResourceProperties.DatabaseHost;
+            const physicalResourceId = event.PhysicalResourceId || `${secretNamePrefix}-db-creds`;
+
+            const smClient = new SecretsManagerClient({});
+
+            try {
+              if (event.RequestType === "Delete") {
+                try {
+                  await smClient.send(new DeleteSecretCommand({
+                    SecretId: `${secretNamePrefix}/connection-string`,
+                    ForceDeleteWithoutRecovery: true
+                  }));
+                  console.log(`Deleted secret: ${secretNamePrefix}/connection-string`);
+                } catch (e) {
+                  if (e.name !== "ResourceNotFoundException") {
+                    console.warn(`Failed to delete secret:`, e);
+                  }
+                }
+                await sendResponse(event, context, "SUCCESS", {}, physicalResourceId);
+                return;
+              }
+
+              // Get the source RDS secret value
+              const secretResponse = await smClient.send(new GetSecretValueCommand({ SecretId: sourceSecretArn }));
+              const secret = JSON.parse(secretResponse.SecretString);
+
+              // Host from explicit parameter, username/password from secret
+              const host = dbHost || secret.host;
+              const username = secret.username;
+              const password = secret.password;
+
+              // Validate required fields
+              if (!host || !username || password === undefined || password === null) {
+                throw new Error(`Missing required fields. host=${!!host}, username=${!!username}, password=${password !== undefined && password !== null}`);
+              }
+
+              // Escape password for .NET connection string format
+              // If password contains ; or = or ' it must be wrapped in single quotes
+              // If password contains single quotes, they must be doubled
+              let escapedPassword = password;
+              if (password.includes(';') || password.includes('=') || password.includes("'")) {
+                escapedPassword = "'" + password.replace(/'/g, "''") + "'";
+              }
+
+              // Create .NET format connection string
+              const connStr = `Host=${host};Database=${databaseName};Username=${username};Password=${escapedPassword}`;
+
+              const connectionStringArn = await createOrUpdateSecret(
+                smClient,
+                `${secretNamePrefix}/connection-string`,
+                connStr,
+                `Database connection string for ${databaseName} (auto-generated)`
+              );
+
+              await sendResponse(event, context, "SUCCESS", {
+                ConnectionStringArn: connectionStringArn,
+                SecretName: `${secretNamePrefix}/connection-string`
+              }, physicalResourceId);
+
+            } catch (err) {
+              console.error("Error:", err);
+              await sendResponse(event, context, "FAILED", {}, physicalResourceId, err.message);
+            }
+          };
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: user-service
+
+  ConnectionStringFormatter:
+    Type: Custom::ConnectionStringFormatter
+    Properties:
+      ServiceToken: !GetAtt ConnectionStringFormatterLambda.Arn
+      SourceSecretArn:
+        Fn::ImportValue: !Sub "${SharedStackName}-DBSecretArn"
+      DatabaseName:
+        Fn::ImportValue: !Sub "${SharedStackName}-DBName"
+      # Host passed explicitly because Aurora ManageMasterUserPassword doesn't include it in secret
+      DatabaseHost:
+        Fn::ImportValue: !Sub "${SharedStackName}-DBClusterEndpoint"
+      SecretNamePrefix: !Sub "stickerlandia/users"
+      # Force update when stack updates
+      # Increment to force custom resource re-execution when Lambda code changes
+      Version: "4"
+
+  #############################################################################
+  # Database Migration - ECS Fargate Task + Custom Resource
+  # Runs .NET MigrationService to create schema and seed data before services start
+  # Matches CDK MigrationTask construct pattern from original Stickerlandia
+  #############################################################################
+
+  MigrationLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/stickerlandia-migration
+      RetentionInDays: 30
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: migration
+
+  MigrationTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub stickerlandia-migration-task-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: migration
+
+  MigrationTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn: ConnectionStringFormatter
+    Properties:
+      Family: !Sub stickerlandia-migration
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt MigrationTaskRole.Arn
+      RuntimePlatform:
+        CpuArchitecture: X86_64
+        OperatingSystemFamily: LINUX
+      ContainerDefinitions:
+        - Name: migration
+          Image: !Ref MigrationContainerImage
+          Essential: true
+          Environment:
+            - Name: DEPLOYMENT_HOST_URL
+              Value:
+                Fn::ImportValue: !Sub "${SharedStackName}-BaseUrl"
+            - Name: DRIVING
+              Value: ASPNET
+            - Name: DRIVEN
+              Value: AWS
+            - Name: DISABLE_SSL
+              Value: "true"
+            - Name: DD_ENV
+              Value: production
+            - Name: DD_SERVICE
+              Value: user-service-migration
+            - Name: DD_VERSION
+              Value: "1.0.2"
+          Secrets:
+            - Name: ConnectionStrings__database
+              ValueFrom: !GetAtt ConnectionStringFormatter.ConnectionStringArn
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref MigrationLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: migration
+              awslogs-create-group: "true"
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: migration
+
+  #############################################################################
+  # Migration Handler - Lambda + Custom Resource
+  # Runs ECS Fargate task and waits for completion during CloudFormation deploy
+  #############################################################################
+
+  MigrationHandlerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub stickerlandia-migration-handler-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+        - PolicyName: ECSRunTask
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:RunTask
+                Resource: !Ref MigrationTaskDefinition
+        - PolicyName: ECSDescribeTasks
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:DescribeTasks
+                Resource: "*"
+                Condition:
+                  ArnEquals:
+                    ecs:cluster: !GetAtt UserServiceCluster.Arn
+        - PolicyName: PassRole
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource:
+                  - !GetAtt TaskExecutionRole.Arn
+                  - !GetAtt MigrationTaskRole.Arn
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: migration
+
+  MigrationHandlerLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub stickerlandia-migration-handler
+      Runtime: nodejs20.x
+      Handler: index.handler
+      Timeout: 600
+      Role: !GetAtt MigrationHandlerRole.Arn
+      Code:
+        ZipFile: |
+          const { ECSClient, RunTaskCommand, DescribeTasksCommand, waitUntilTasksStopped } = require("@aws-sdk/client-ecs");
+          const https = require("https");
+          const url = require("url");
+
+          async function sendResponse(event, context, status, data, physicalResourceId, reason) {
+            const responseBody = JSON.stringify({
+              Status: status,
+              Reason: reason || `See CloudWatch Log Stream: ${context.logStreamName}`,
+              PhysicalResourceId: physicalResourceId || context.logStreamName,
+              StackId: event.StackId,
+              RequestId: event.RequestId,
+              LogicalResourceId: event.LogicalResourceId,
+              Data: data || {}
+            });
+
+            console.log("Response body:", responseBody);
+
+            const parsedUrl = url.parse(event.ResponseURL);
+            const options = {
+              hostname: parsedUrl.hostname,
+              port: 443,
+              path: parsedUrl.path,
+              method: "PUT",
+              headers: {
+                "content-type": "",
+                "content-length": responseBody.length
+              }
+            };
+
+            return new Promise((resolve, reject) => {
+              const req = https.request(options, (res) => {
+                console.log(`CFN response status: ${res.statusCode}`);
+                resolve();
+              });
+              req.on("error", (err) => {
+                console.error("CFN response error:", err);
+                reject(err);
+              });
+              req.write(responseBody);
+              req.end();
+            });
+          }
+
+          exports.handler = async (event, context) => {
+            console.log("Event:", JSON.stringify(event, null, 2));
+
+            const props = event.ResourceProperties;
+            const client = new ECSClient({});
+            const physicalResourceId = event.PhysicalResourceId || `migration-${Date.now()}`;
+
+            try {
+              if (event.RequestType === "Delete") {
+                await sendResponse(event, context, "SUCCESS", {}, physicalResourceId);
+                return;
+              }
+
+              // FIX: Wait for Secrets Manager and IAM policies to propagate
+              // This prevents exit codes 133/145 from secret retrieval failures
+              console.log("Waiting 15 seconds for Secrets Manager and IAM policy propagation...");
+              await new Promise(resolve => setTimeout(resolve, 15000));
+
+              console.log("Starting migration task...");
+              const runTaskResult = await client.send(new RunTaskCommand({
+                cluster: props.ClusterArn,
+                taskDefinition: props.TaskDefinitionArn,
+                launchType: "FARGATE",
+                enableECSManagedTags: true,
+                propagateTags: "TASK_DEFINITION",
+                networkConfiguration: {
+                  awsvpcConfiguration: {
+                    assignPublicIp: "DISABLED",
+                    subnets: props.Subnets,
+                    securityGroups: props.SecurityGroups,
+                  },
+                },
+                platformVersion: "LATEST",
+              }));
+
+              if (!runTaskResult.tasks || runTaskResult.tasks.length === 0) {
+                const failures = runTaskResult.failures || [];
+                throw new Error(`Failed to start migration task: ${JSON.stringify(failures)}`);
+              }
+
+              const taskArn = runTaskResult.tasks[0].taskArn;
+              const initialStatus = runTaskResult.tasks[0].lastStatus;
+              console.log(`Migration task requested: ${taskArn}, Initial status: ${initialStatus}`);
+
+              // Wait for task to provision (ENI attachment, secret injection)
+              console.log("Waiting 10 seconds for task to provision...");
+              await new Promise(resolve => setTimeout(resolve, 10000));
+
+              // Verify task didn't immediately fail
+              console.log("Verifying task started successfully...");
+              const initialCheck = await client.send(new DescribeTasksCommand({
+                cluster: props.ClusterArn,
+                tasks: [taskArn],
+              }));
+
+              const initialTask = initialCheck.tasks[0];
+              console.log(`Task status after provision: ${initialTask.lastStatus}`);
+
+              if (initialTask.lastStatus === "STOPPED") {
+                const stopReason = initialTask.stoppedReason || "Unknown";
+                const containers = initialTask.containers || [];
+                const containerInfo = containers.map(c => ({
+                  name: c.name,
+                  exitCode: c.exitCode,
+                  reason: c.reason || "N/A"
+                }));
+                throw new Error(
+                  `Task stopped immediately after launch. This usually indicates a secret retrieval failure. ` +
+                  `Stop reason: ${stopReason}. Containers: ${JSON.stringify(containerInfo)}. ` +
+                  `Check logs: aws logs tail /ecs/stickerlandia-dev-migration --follow`
+                );
+              }
+
+              console.log("Task started successfully. Waiting for migration to complete...");
+              try {
+                await waitUntilTasksStopped(
+                  { client, maxWaitTime: 300, minDelay: 10, maxDelay: 15 },
+                  { cluster: props.ClusterArn, tasks: [taskArn] }
+                );
+              } catch (e) {
+                throw new Error(`Migration task timed out or failed to complete: ${e.message}`);
+              }
+
+              const describeResult = await client.send(new DescribeTasksCommand({
+                cluster: props.ClusterArn,
+                tasks: [taskArn],
+              }));
+
+              const task = describeResult.tasks[0];
+              const container = task.containers.find(c => c.name === "migration");
+
+              if (!container) {
+                throw new Error("Migration container not found in task");
+              }
+
+              console.log(`Migration task stopped. Exit code: ${container.exitCode}, Reason: ${task.stoppedReason || "N/A"}`);
+
+              if (container.exitCode !== 0) {
+                throw new Error(
+                  `Migration failed with exit code ${container.exitCode}. Reason: ${task.stoppedReason || "Unknown"}. ` +
+                  `Exit codes 133/145 indicate secrets retrieval failure. ` +
+                  `Check migration logs: aws logs tail /ecs/stickerlandia-dev-migration --follow`
+                );
+              }
+
+              console.log("Migration completed successfully!");
+
+              await sendResponse(event, context, "SUCCESS", {
+                TaskArn: taskArn,
+                ExitCode: container.exitCode,
+              }, physicalResourceId);
+
+            } catch (err) {
+              console.error("Error:", err);
+              await sendResponse(event, context, "FAILED", {}, physicalResourceId, err.message);
+            }
+          };
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: migration
+
+  RunMigration:
+    Type: Custom::RunMigration
+    DependsOn:
+      - MigrationTaskDefinition
+      - UserServiceCluster
+    Properties:
+      ServiceToken: !GetAtt MigrationHandlerLambda.Arn
+      ClusterArn: !GetAtt UserServiceCluster.Arn
+      TaskDefinitionArn: !Ref MigrationTaskDefinition
+      Subnets:
+        - Fn::ImportValue: !Sub "${SharedStackName}-PrivateSubnet1Id"
+        - Fn::ImportValue: !Sub "${SharedStackName}-PrivateSubnet2Id"
+      SecurityGroups:
+        - Fn::ImportValue: !Sub "${SharedStackName}-SharedSecurityGroupId"
+      # Force re-run on every deployment
+      Timestamp: !Sub "${AWS::StackName}-${AWS::Region}"
+
+  #############################################################################
+  # ECS Cluster
+  #############################################################################
+
+  UserServiceCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub stickerlandia-user-service
+      CapacityProviders:
+        - FARGATE
+        - FARGATE_SPOT
+      DefaultCapacityProviderStrategy:
+        - CapacityProvider: FARGATE
+          Weight: 1
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: user-service
+
+  #############################################################################
+  # CloudWatch Log Group
+  #############################################################################
+
+  UserServiceLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/stickerlandia-user-service
+      RetentionInDays: 30
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: user-service
+
+  # Datadog Agent Log Group (for ECS sidecar)
+  DatadogAgentLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/stickerlandia-datadog-agent
+      RetentionInDays: 7
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: user-service
+
+  #############################################################################
+  # IAM Roles - ECS Task Execution Role
+  #############################################################################
+
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub stickerlandia-user-service-exec-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: SecretsAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  # Access to formatted connection string secret (created by custom resource)
+                  # Uses wildcard for random suffix that Secrets Manager adds
+                  - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stickerlandia/users/*"
+        - PolicyName: DatadogApiKeyAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:datadog/api-key*"
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: user-service
+
+  #############################################################################
+  # IAM Roles - ECS Task Role
+  #############################################################################
+
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub stickerlandia-user-service-task-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: SNSPublish
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource:
+                  - !Ref UserRegisteredTopic
+        - PolicyName: SQSAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Resource:
+                  - !GetAtt StickerClaimedQueue.Arn
+                  - !GetAtt StickerClaimedDLQ.Arn
+        - PolicyName: EventBridgePutEvents
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - events:PutEvents
+                Resource:
+                  - Fn::ImportValue: !Sub "${SharedStackName}-EventBusArn"
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: user-service
+
+  #############################################################################
+  # ECS Task Definition - User Service
+  #############################################################################
+
+  UserServiceTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub stickerlandia-user-service
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      RuntimePlatform:
+        CpuArchitecture: X86_64
+        OperatingSystemFamily: LINUX
+      ContainerDefinitions:
+        - Name: user-service
+          Image: !Ref ServiceContainerImage
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8080
+              Protocol: tcp
+          Environment:
+            - Name: DEPLOYMENT_HOST_URL
+              Value:
+                Fn::ImportValue: !Sub "${SharedStackName}-BaseUrl"
+            - Name: DRIVING
+              Value: ASPNET
+            - Name: DRIVEN
+              Value: AWS
+            - Name: DISABLE_SSL
+              Value: "true"
+            - Name: MESSAGING_PROVIDER
+              Value: aws
+            - Name: EVENT_BUS_NAME
+              Value:
+                Fn::ImportValue: !Sub "${SharedStackName}-EventBusName"
+            - Name: Aws__EventBusName
+              Value:
+                Fn::ImportValue: !Sub "${SharedStackName}-EventBusName"
+            - Name: Aws__UserRegisteredTopicArn
+              Value: !Ref UserRegisteredTopic
+            - Name: Aws__StickerClaimedQueueUrl
+              Value: !Ref StickerClaimedQueue
+            - Name: LOGGING__LOGLEVEL__DEFAULT
+              Value: INFORMATION
+            - Name: LOGGING__LOGLEVEL__MICROSOFT
+              Value: INFORMATION
+            - Name: LOGGING__LOGLEVEL__MICROSOFT.ENTITYFRAMEWORKCORE.DATABASE.COMMAND
+              Value: WARNING
+            # Datadog APM environment variables
+            - Name: DD_ENV
+              Value: production
+            - Name: DD_SERVICE
+              Value: user-service
+            - Name: DD_VERSION
+              Value: "1.0.2"
+            - Name: DD_GIT_COMMIT_SHA
+              Value: 06a35dd6e3597ee20474b9944d8205f67a1277c6
+            - Name: DD_GIT_REPOSITORY_URL
+              Value: https://github.com/Datadog/stickerlandia
+            - Name: DD_AGENT_HOST
+              Value: 127.0.0.1
+            - Name: DD_TRACE_ENABLED
+              Value: "true"
+            - Name: DD_TRACE_ROUTE_TEMPLATE_RESOURCE_NAMES_ENABLED
+              Value: "true"
+            - Name: DD_LOGS_INJECTION
+              Value: "true"
+            - Name: DD_RUNTIME_METRICS_ENABLED
+              Value: "true"
+            - Name: DD_PROFILING_ENABLED
+              Value: "true"
+            - Name: DD_IAST_ENABLED
+              Value: "true"
+            - Name: ECS_ENABLE_CONTAINER_METADATA
+              Value: "true"
+          Secrets:
+            # Formatted connection string from custom resource
+            - Name: ConnectionStrings__database
+              ValueFrom: !GetAtt ConnectionStringFormatter.ConnectionStringArn
+          HealthCheck:
+            Command:
+              - CMD-SHELL
+              - curl -f http://localhost:8080/api/users/v1/health || exit 1
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 60
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref UserServiceLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: user-service
+        # Datadog Agent Sidecar Container
+        - Name: datadog-agent
+          Image: public.ecr.aws/datadog/agent:latest
+          Essential: false
+          PortMappings:
+            - ContainerPort: 8126
+              Protocol: tcp
+            - ContainerPort: 8125
+              Protocol: udp
+          Environment:
+            - Name: DD_APM_ENABLED
+              Value: "true"
+            - Name: DD_APM_NON_LOCAL_TRAFFIC
+              Value: "true"
+            - Name: ECS_FARGATE
+              Value: "true"
+            - Name: DD_SITE
+              Value: datadoghq.com
+            - Name: DD_ENV
+              Value: production
+            - Name: DD_SERVICE
+              Value: user-service
+            - Name: DD_VERSION
+              Value: "1.0.2"
+            - Name: DD_LOG_LEVEL
+              Value: ERROR
+          Secrets:
+            - Name: DD_API_KEY
+              ValueFrom: !Ref DatadogApiKeySecretArn
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref DatadogAgentLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: datadog
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: user-service
+
+  #############################################################################
+  # Service Discovery
+  #############################################################################
+
+  ServiceDiscoveryService:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: users.api
+      NamespaceId:
+        Fn::ImportValue: !Sub "${SharedStackName}-ServiceDiscoveryNamespaceId"
+      DnsConfig:
+        DnsRecords:
+          - Type: SRV
+            TTL: 60
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: user-service
+
+  #############################################################################
+  # ECS Service
+  #############################################################################
+
+  UserService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - UserServiceApiIntegration
+      - RunMigration
+    Properties:
+      ServiceName: !Sub stickerlandia-user-service
+      Cluster: !Ref UserServiceCluster
+      TaskDefinition: !Ref UserServiceTaskDefinition
+      DesiredCount: 1
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 1
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - Fn::ImportValue: !Sub "${SharedStackName}-PrivateSubnet1Id"
+            - Fn::ImportValue: !Sub "${SharedStackName}-PrivateSubnet2Id"
+          SecurityGroups:
+            - Fn::ImportValue: !Sub "${SharedStackName}-SharedSecurityGroupId"
+          AssignPublicIp: DISABLED
+      ServiceRegistries:
+        - RegistryArn: !GetAtt ServiceDiscoveryService.Arn
+          ContainerName: user-service
+          ContainerPort: 8080
+      EnableECSManagedTags: true
+      PropagateTags: SERVICE
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: user-service
+
+  #############################################################################
+  # API Gateway Integration
+  #############################################################################
+
+  # Single integration for all routes - Cloud Map resolves to ECS service
+  # Path passthrough is handled by HTTP_PROXY integration type
+  UserServiceApiIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    DependsOn: ServiceDiscoveryService
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub "${SharedStackName}-HttpApiId"
+      IntegrationType: HTTP_PROXY
+      IntegrationUri: !GetAtt ServiceDiscoveryService.Arn
+      IntegrationMethod: ANY
+      ConnectionType: VPC_LINK
+      ConnectionId:
+        Fn::ImportValue: !Sub "${SharedStackName}-VpcLinkId"
+      PayloadFormatVersion: "1.0"
+
+  UsersApiRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub "${SharedStackName}-HttpApiId"
+      RouteKey: "ANY /api/users/{proxy+}"
+      Target: !Sub "integrations/${UserServiceApiIntegration}"
+
+  WellKnownApiRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub "${SharedStackName}-HttpApiId"
+      RouteKey: "ANY /.well-known/{proxy+}"
+      Target: !Sub "integrations/${UserServiceApiIntegration}"
+
+  AuthApiRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub "${SharedStackName}-HttpApiId"
+      RouteKey: "ANY /auth/{proxy+}"
+      Target: !Sub "integrations/${UserServiceApiIntegration}"
+
+  AuthUpperApiRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub "${SharedStackName}-HttpApiId"
+      RouteKey: "ANY /Auth/{proxy+}"
+      Target: !Sub "integrations/${UserServiceApiIntegration}"
+
+  #############################################################################
+  # Lambda - Sticker Claimed Worker
+  #############################################################################
+
+  StickerClaimedWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/stickerlandia-sticker-claimed-worker
+      RetentionInDays: 30
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: user-service
+
+  StickerClaimedWorkerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub stickerlandia-sticker-claimed-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: SQSAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Resource:
+                  - !GetAtt StickerClaimedQueue.Arn
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource:
+                  - !GetAtt StickerClaimedDLQ.Arn
+        - PolicyName: SecretsAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - Fn::ImportValue: !Sub "${SharedStackName}-DBSecretArn"
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !GetAtt StickerClaimedWorkerLogGroup.Arn
+                  - !Sub "${StickerClaimedWorkerLogGroup.Arn}:*"
+        - PolicyName: DatadogApiKeyAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:datadog/api-key*"
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: user-service
+
+  StickerClaimedWorkerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub stickerlandia-sticker-claimed-worker
+      Runtime: python3.12
+      Handler: datadog_lambda.handler.handler
+      Role: !GetAtt StickerClaimedWorkerRole.Arn
+      Architectures:
+        - arm64
+      Layers:
+        - !Ref TeamLambdaLayerArn
+        - !Sub "arn:aws:lambda:${AWS::Region}:464622532012:layer:Datadog-Extension-ARM:80"
+        - !Sub "arn:aws:lambda:${AWS::Region}:464622532012:layer:Datadog-Python312-ARM:101"
+      Code:
+        S3Bucket: !Ref TeamLambdaSourceBucket
+        S3Key: !Sub "${TeamLambdaSourceKey}gdQuests-team-lambda-source.zip"
+      Timeout: 30
+      MemorySize: 512
+      Environment:
+        Variables:
+          DB_HOST:
+            Fn::ImportValue: !Sub "${SharedStackName}-DBClusterEndpoint"
+          DB_PORT:
+            Fn::ImportValue: !Sub "${SharedStackName}-DBClusterPort"
+          DB_NAME:
+            Fn::ImportValue: !Sub "${SharedStackName}-DBName"
+          DB_SECRET_ARN:
+            Fn::ImportValue: !Sub "${SharedStackName}-DBSecretArn"
+          ENVIRONMENT: production
+          # Datadog APM environment variables
+          DD_API_KEY: "{{resolve:secretsmanager:datadog/api-key}}"
+          DD_SITE: datadoghq.com
+          DD_ENV: production
+          DD_SERVICE: sticker-claimed-worker
+          DD_VERSION: "1.0.2"
+          DD_DATA_STREAMS_ENABLED: "true"
+          DD_TRACE_ENABLED: "true"
+          DD_LOG_LEVEL: ERROR
+          DD_LAMBDA_HANDLER: sticker_claimed_worker.lambda_handler
+          DD_TAGS: "team:platform-engineering"
+      VpcConfig:
+        SecurityGroupIds:
+          - Fn::ImportValue: !Sub "${SharedStackName}-SharedSecurityGroupId"
+        SubnetIds:
+          - Fn::ImportValue: !Sub "${SharedStackName}-PrivateSubnet1Id"
+          - Fn::ImportValue: !Sub "${SharedStackName}-PrivateSubnet2Id"
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: user-service
+
+  StickerClaimedWorkerEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      EventSourceArn: !GetAtt StickerClaimedQueue.Arn
+      FunctionName: !GetAtt StickerClaimedWorkerFunction.Arn
+      Enabled: true
+      FunctionResponseTypes:
+        - ReportBatchItemFailures
+
+  #############################################################################
+  # Lambda - Sticker Outbox Worker
+  # Publishes user registration events from the outbox table to EventBridge
+  #############################################################################
+
+  StickerOutboxWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/stickerlandia-sticker-outbox-worker
+      RetentionInDays: 30
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: user-service
+
+  # IAM Managed Policy for EventBridge access - exists but NOT attached to role
+  # This is the policy that needs to be attached to fix the welcome sticker issue
+  StickerOutboxWorkerEventBridgePolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub stickerlandia-sticker-outbox-eventbridge-publish
+      Description: Allows Sticker Outbox Worker Lambda to publish user registration events to EventBridge. Attach this policy to the Sticker Outbox Worker role to enable welcome sticker functionality.
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - events:PutEvents
+            Resource:
+              - Fn::ImportValue: !Sub "${SharedStackName}-EventBusArn"
+
+  StickerOutboxWorkerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub stickerlandia-sticker-outbox-worker-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        # NOTE: StickerOutboxWorkerEventBridgePolicy is intentionally NOT attached here
+        # This causes Access Denied errors when publishing to EventBridge
+        # Players must discover and attach this policy to fix the welcome sticker issue
+      Policies:
+        - PolicyName: SecretsAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - Fn::ImportValue: !Sub "${SharedStackName}-DBSecretArn"
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !GetAtt StickerOutboxWorkerLogGroup.Arn
+                  - !Sub "${StickerOutboxWorkerLogGroup.Arn}:*"
+        - PolicyName: DatadogApiKeyAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:datadog/api-key*"
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: user-service
+
+  StickerOutboxWorkerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub stickerlandia-sticker-outbox-worker
+      Runtime: python3.12
+      Handler: datadog_lambda.handler.handler
+      Role: !GetAtt StickerOutboxWorkerRole.Arn
+      Architectures:
+        - arm64
+      Layers:
+        - !Ref TeamLambdaLayerArn
+        - !Sub "arn:aws:lambda:${AWS::Region}:464622532012:layer:Datadog-Extension-ARM:80"
+        - !Sub "arn:aws:lambda:${AWS::Region}:464622532012:layer:Datadog-Python312-ARM:101"
+      Code:
+        S3Bucket: !Ref TeamLambdaSourceBucket
+        S3Key: !Sub "${TeamLambdaSourceKey}gdQuests-team-lambda-source.zip"
+      Timeout: 60
+      MemorySize: 512
+      Environment:
+        Variables:
+          DB_HOST:
+            Fn::ImportValue: !Sub "${SharedStackName}-DBClusterEndpoint"
+          DB_PORT:
+            Fn::ImportValue: !Sub "${SharedStackName}-DBClusterPort"
+          DB_NAME:
+            Fn::ImportValue: !Sub "${SharedStackName}-DBName"
+          DB_SECRET_ARN:
+            Fn::ImportValue: !Sub "${SharedStackName}-DBSecretArn"
+          EVENT_BUS_NAME:
+            Fn::ImportValue: !Sub "${SharedStackName}-EventBusName"
+          ENVIRONMENT: production
+          # Datadog APM environment variables
+          DD_API_KEY: "{{resolve:secretsmanager:datadog/api-key}}"
+          DD_SITE: datadoghq.com
+          DD_ENV: production
+          DD_SERVICE: sticker-outbox-worker
+          DD_LOG_LEVEL: ERROR
+          DD_VERSION: "1.0.2"
+          DD_DATA_STREAMS_ENABLED: "true"
+          DD_TRACE_ENABLED: "true"
+          DD_LAMBDA_HANDLER: outbox_worker.lambda_handler
+          DD_TAGS: "team:platform-engineering"
+      VpcConfig:
+        SecurityGroupIds:
+          - Fn::ImportValue: !Sub "${SharedStackName}-SharedSecurityGroupId"
+        SubnetIds:
+          - Fn::ImportValue: !Sub "${SharedStackName}-PrivateSubnet1Id"
+          - Fn::ImportValue: !Sub "${SharedStackName}-PrivateSubnet2Id"
+      Tags:
+        - Key: App
+          Value: stickerlandia
+        - Key: Environment
+          Value: production
+        - Key: Service
+          Value: user-service
+
+  StickerOutboxWorkerScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub stickerlandia-sticker-outbox-worker-schedule
+      Description: Trigger Sticker Outbox Worker every 1 minute to publish user registration events
+      ScheduleExpression: rate(1 minute)
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt StickerOutboxWorkerFunction.Arn
+          Id: StickerOutboxWorkerTarget
+          Input: '{"run": true}'
+          RetryPolicy:
+            MaximumRetryAttempts: 2
+      # Note: AWS::Events::Rule does NOT support Tags in CloudFormation
+
+  StickerOutboxWorkerSchedulePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref StickerOutboxWorkerFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt StickerOutboxWorkerScheduleRule.Arn
+
+#############################################################################
+# Outputs
+#############################################################################
+
+Outputs:
+  UserServiceClusterArn:
+    Description: User Service ECS Cluster ARN
+    Value: !GetAtt UserServiceCluster.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-ClusterArn"
+
+  UserServiceClusterName:
+    Description: User Service ECS Cluster Name
+    Value: !Ref UserServiceCluster
+    Export:
+      Name: !Sub "${AWS::StackName}-ClusterName"
+
+  UserRegisteredTopicArn:
+    Description: SNS Topic ARN for user registered events
+    Value: !Ref UserRegisteredTopic
+    Export:
+      Name: !Sub "${AWS::StackName}-UserRegisteredTopicArn"
+
+  StickerClaimedQueueUrl:
+    Description: SQS Queue URL for sticker claimed events
+    Value: !Ref StickerClaimedQueue
+    Export:
+      Name: !Sub "${AWS::StackName}-StickerClaimedQueueUrl"
+
+  StickerClaimedQueueArn:
+    Description: SQS Queue ARN for sticker claimed events
+    Value: !GetAtt StickerClaimedQueue.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-StickerClaimedQueueArn"
+
+  ServiceDiscoveryServiceArn:
+    Description: Service Discovery Service ARN
+    Value: !GetAtt ServiceDiscoveryService.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-ServiceDiscoveryServiceArn"
+
+  # Sticker Outbox Worker outputs - useful for Datadog workflow and verification
+  StickerOutboxWorkerFunctionArn:
+    Description: Sticker Outbox Worker Lambda ARN
+    Value: !GetAtt StickerOutboxWorkerFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-StickerOutboxWorkerFunctionArn"
+
+  StickerOutboxWorkerRoleArn:
+    Description: Sticker Outbox Worker IAM Role ARN
+    Value: !GetAtt StickerOutboxWorkerRole.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-StickerOutboxWorkerRoleArn"
+
+  StickerOutboxWorkerRoleName:
+    Description: Sticker Outbox Worker IAM Role Name (for attaching policies)
+    Value: !Ref StickerOutboxWorkerRole
+    Export:
+      Name: !Sub "${AWS::StackName}-StickerOutboxWorkerRoleName"
+
+  StickerOutboxWorkerEventBridgePolicyArn:
+    Description: EventBridge publish policy ARN for Sticker Outbox Worker role
+    Value: !Ref StickerOutboxWorkerEventBridgePolicy
+    Export:
+      Name: !Sub "${AWS::StackName}-StickerOutboxWorkerEventBridgePolicyArn"
