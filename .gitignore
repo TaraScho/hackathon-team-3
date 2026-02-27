@@ -14,3 +14,10 @@ datadog-resources/
 # OS
 .DS_Store
 **/.DS_Store
+
+# Terraform
+*.tfstate
+*.tfstate.backup
+*.tfvars
+.terraform/
+.terraform.lock.hcl
